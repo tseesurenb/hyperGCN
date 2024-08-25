@@ -383,6 +383,10 @@ def plot_loss3(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, a
         plt.plot(epoch_list, all_knn_metrics[i]['recall'], label=f'Exp {i+1} - KNN Recall', linestyle='-', color='orange')
         plt.plot(epoch_list, all_knn_metrics[i]['precision'], label=f'Exp {i+1} - KNN Precision', linestyle='--', color='orange')
         
+        plt.xlabel('Epoch')
+        plt.ylabel('NCDG')
+        plt.title('NCDG')
+        
         # Plot for metrics
         plt.subplot(1, 3, 3)
         # BI Metrics
@@ -393,7 +397,7 @@ def plot_loss3(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, a
         
         plt.xlabel('Epoch')
         plt.ylabel('Metrics')
-        plt.title('Metrics')
+        plt.title('Recall & Precision')
         #plt.legend()
 
     # Custom Legend

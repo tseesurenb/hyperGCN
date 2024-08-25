@@ -94,7 +94,7 @@ print(f"MODEL: {config['model']} | EDGE TYPE: {config['edge']} | LATENT_DIM: {co
 print(f"  Recall: {recalls[0]:.4f}, {recalls[1]:.4f}, {recalls[2]:.4f}, {recalls[3]:.4f}, {recalls[4]:.4f} | {round(np.mean(recalls), 4):.4f}, {round(np.std(recalls), 4):.4f}")
 print(f"    Prec: {precs[0]:.4f}, {precs[1]:.4f}, {precs[2]:.4f}, {precs[3]:.4f}, {precs[4]:.4f} | {round(np.mean(precs), 4):.4f}, {round(np.std(precs), 4):.4f}")
 print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {round(np.mean(f1s), 4):.4f}, {round(np.std(f1s), 4):.4f}")
-print(f"NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {round(np.mean(ncdg), 4):.4f}, {round(np.std(ncdg), 4):.4f}")
+print(f"    NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {round(np.mean(ncdg), 4):.4f}, {round(np.std(ncdg), 4):.4f}")
 
 config['edge'] = edge_value
 
@@ -133,6 +133,6 @@ print(f"MODEL: {config['model']} | EDGE TYPE: {config['edge']} | LATENT_DIM: {co
 print(f"  Recall: {recalls[0]:.4f}, {recalls[1]:.4f}, {recalls[2]:.4f}, {recalls[3]:.4f}, {recalls[4]:.4f} | {round(np.mean(recalls), 4):.4f}, {round(np.std(recalls), 4):.4f}")
 print(f"    Prec: {precs[0]:.4f}, {precs[1]:.4f}, {precs[2]:.4f}, {precs[3]:.4f}, {precs[4]:.4f} | {round(np.mean(precs), 4):.4f}, {round(np.std(precs), 4):.4f}")
 print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {round(np.mean(f1s), 4):.4f}, {round(np.std(f1s), 4):.4f}")
-print(f"NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {round(np.mean(ncdg), 4):.4f}, {round(np.std(ncdg), 4):.4f}")
+print(f"    NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {round(np.mean(ncdg), 4):.4f}, {round(np.std(ncdg), 4):.4f}")
 
 plot_loss3(len(seeds), config['epochs'], all_bi_losses, all_bi_metrics, all_knn_losses, all_knn_metrics)
