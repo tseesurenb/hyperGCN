@@ -80,8 +80,24 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
 
     metrics_df['recall'] = metrics_df.apply(lambda x : len(x['intrsctn_itm'])/len(x['item_id_idx']), axis = 1) 
     metrics_df['precision'] = metrics_df.apply(lambda x : len(x['intrsctn_itm'])/K, axis = 1)
+    
+    # Calculate nDCG
+    def dcg_at_k(r, k):
+        r = np.asfarray(r)[:k]
+        if r.size:
+            return np.sum(r / np.log2(np.arange(2, r.size + 2)))
+        return 0.0
 
-    return metrics_df['recall'].mean(), metrics_df['precision'].mean()
+    def ndcg_at_k(relevance_scores, k):
+        dcg_max = dcg_at_k(sorted(relevance_scores, reverse=True), k)
+        if not dcg_max:
+            return 0.0
+        return dcg_at_k(relevance_scores, k) / dcg_max
+
+    metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id_idx'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
+
+
+    return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
 
 def get_metrics2(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
     # Ensure the embeddings are on the correct device
@@ -212,7 +228,8 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
     metrics = {
         'recall': [],
         'precision': [],
-        'f1': []       
+        'f1': [],
+        'ncdg': []      
     }
 
     pbar = tqdm(range(epochs), bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', ascii="░❯")
@@ -250,7 +267,7 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
         with torch.no_grad():
             _, out = model(train_edge_index, train_edge_attrs)
             final_user_Embed, final_item_Embed = torch.split(out, (n_users, n_items))
-            test_topK_recall,  test_topK_precision = get_metrics(
+            test_topK_recall,  test_topK_precision, test_ncdg = get_metrics(
                 final_user_Embed, final_item_Embed, n_users, n_items, train_df, test_df, K, device
             )
         
@@ -263,8 +280,9 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
         metrics['recall'].append(round(test_topK_recall,4))
         metrics['precision'].append(round(test_topK_precision,4))
         metrics['f1'].append(round(f1,4))
+        metrics['ncdg'].append(round(test_ncdg,4))
         
-        pbar.set_postfix_str(f"prec@20: {br}{test_topK_precision:.4f}{rs} | recall@20: {br}{test_topK_recall:.4f}{rs}")
+        pbar.set_postfix_str(f"prec@20: {br}{test_topK_precision:.4f}{rs} | recall@20: {br}{test_topK_recall:.4f}{rs} | ncdg@20: {br}{test_ncdg:.4f}{rs}")
         pbar.refresh()
 
     return (losses, metrics)
@@ -339,7 +357,7 @@ def plot_loss3(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, a
     for i in range(num_exp):
         epoch_list = [(j + 1) for j in range(epochs)]
         
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 3, 1)
         # BI Losses
         plt.plot(epoch_list, all_bi_losses[i]['loss'], label=f'Exp {i+1} - BI Total Training Loss', linestyle='-', color='blue')
         plt.plot(epoch_list, all_bi_losses[i]['bpr_loss'], label=f'Exp {i+1} - BI BPR Training Loss', linestyle='--', color='blue')
@@ -356,7 +374,7 @@ def plot_loss3(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, a
         #plt.legend()
 
         # Plot for metrics
-        plt.subplot(1, 2, 2)
+        plt.subplot(1, 3, 2)
         # BI Metrics
         plt.plot(epoch_list, all_bi_metrics[i]['recall'], label=f'Exp {i+1} - BI Recall', linestyle='-', color='blue')
         plt.plot(epoch_list, all_bi_metrics[i]['precision'], label=f'Exp {i+1} - BI Precision', linestyle='--', color='blue')
@@ -364,6 +382,14 @@ def plot_loss3(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, a
         # KNN Metrics
         plt.plot(epoch_list, all_knn_metrics[i]['recall'], label=f'Exp {i+1} - KNN Recall', linestyle='-', color='orange')
         plt.plot(epoch_list, all_knn_metrics[i]['precision'], label=f'Exp {i+1} - KNN Precision', linestyle='--', color='orange')
+        
+        # Plot for metrics
+        plt.subplot(1, 3, 3)
+        # BI Metrics
+        plt.plot(epoch_list, all_bi_metrics[i]['ncdg'], label=f'Exp {i+1} - BI NCDG', linestyle='-', color='blue')
+        
+        # KNN Metrics
+        plt.plot(epoch_list, all_knn_metrics[i]['ncdg'], label=f'Exp {i+1} - KNN NCDG', linestyle='-', color='orange')
         
         plt.xlabel('Epoch')
         plt.ylabel('Metrics')
