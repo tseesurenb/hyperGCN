@@ -84,8 +84,8 @@ else:
         pickle.dump(all_results, f)
 
 print(f'\n-------------------------------------------- Experimental Results --------------------------------------------')    
-print(f'Dataset: {config["dataset"]}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}')
-print(f'MODEL: {config['model']} | EDGE TYPE: {config['edge']} | LATENT_DIM: {config['emb_dim']} | N_LAYERS: {config['layers']} | SIMILARITY: u - {config['u_sim']} with {config['u_sim_thresh']}, i - {config['i_sim']} with {config['i_sim_thresh']} | BATCH_SIZE: {config['batch_size']} | DECAY: {config['decay']} | topK: {config['top_k']} | IS_TEMP: {config['enable_temp_emb']}')
+print(f"Dataset: {config['dataset']}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}")
+print(f"MODEL: {config['model']} | EDGE TYPE: {config['edge']} | LATENT_DIM: {config['emb_dim']} | N_LAYERS: {config['layers']} | SIMILARITY: u - {config['u_sim']} with {config['u_sim_thresh']}, i - {config['i_sim']} with {config['i_sim_thresh']} | BATCH_SIZE: {config['batch_size']} | DECAY: {config['decay']} | topK: {config['top_k']} | IS_TEMP: {config['enable_temp_emb']}")
 print(f"  Recall: {recalls[0]:.4f}, {recalls[1]:.4f}, {recalls[2]:.4f}, {recalls[3]:.4f}, {recalls[4]:.4f} | {round(np.mean(recalls), 4):.4f}, {round(np.std(recalls), 4):.4f}")
 print(f"    Prec: {precs[0]:.4f}, {precs[1]:.4f}, {precs[2]:.4f}, {precs[3]:.4f}, {precs[4]:.4f} | {round(np.mean(precs), 4):.4f}, {round(np.std(precs), 4):.4f}")
 print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {round(np.mean(f1s), 4):.4f}, {round(np.std(f1s), 4):.4f}")
@@ -120,8 +120,8 @@ for seed in seeds:
     exp_n += 1
 
 print(f'\n-------------------------------------------- Experimental Results --------------------------------------------')    
-print(f'Dataset: {config["dataset"]}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}')
-print(f'MODEL: {config['model']} | EDGE TYPE: {config['edge']} | LATENT_DIM: {config['emb_dim']} | N_LAYERS: {config['layers']} | SIMILARITY: u - {config['u_sim']} with {config['u_sim_thresh']}, i - {config['i_sim']} with {config['i_sim_thresh']} | BATCH_SIZE: {config['batch_size']} | DECAY: {config['decay']} | topK: {config['top_k']} | IS_TEMP: {config['enable_temp_emb']}')
+print(f"Dataset: {config['dataset']}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}")
+print(f"MODEL: {config['model']} | EDGE TYPE: {config['edge']} | LATENT_DIM: {config['emb_dim']} | N_LAYERS: {config['layers']} | SIMILARITY: u - {config['u_sim']} with {config['u_sim_thresh']}, i - {config['i_sim']} with {config['i_sim_thresh']} | BATCH_SIZE: {config['batch_size']} | DECAY: {config['decay']} | topK: {config['top_k']} | IS_TEMP: {config['enable_temp_emb']}")
 print(f"  Recall: {recalls[0]:.4f}, {recalls[1]:.4f}, {recalls[2]:.4f}, {recalls[3]:.4f}, {recalls[4]:.4f} | {round(np.mean(recalls), 4):.4f}, {round(np.std(recalls), 4):.4f}")
 print(f"    Prec: {precs[0]:.4f}, {precs[1]:.4f}, {precs[2]:.4f}, {precs[3]:.4f}, {precs[4]:.4f} | {round(np.mean(precs), 4):.4f}, {round(np.std(precs), 4):.4f}")
 print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {round(np.mean(f1s), 4):.4f}, {round(np.std(f1s), 4):.4f}")
