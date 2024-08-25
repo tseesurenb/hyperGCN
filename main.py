@@ -68,7 +68,7 @@ else:
         recalls.append(metrics['recall'][max_idx])
         precs.append(metrics['precision'][max_idx])
         f1s.append(metrics['f1'][max_idx])
-        ncdg.append(np.max(metrics['ndcg']))
+        ncdg.append(np.max(metrics['ncdg']))
         all_bi_losses.append(losses)
         all_bi_metrics.append(metrics)
         
@@ -121,7 +121,7 @@ for seed in seeds:
     recalls.append(metrics['recall'][max_idx])
     precs.append(metrics['precision'][max_idx])
     f1s.append(metrics['f1'][max_idx])
-    ncdg.append(np.max(metrics['ndcg']))
+    ncdg.append(np.max(metrics['ncdg']))
     all_knn_losses.append(losses)
     all_knn_metrics.append(metrics)
     
