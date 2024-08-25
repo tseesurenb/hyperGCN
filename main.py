@@ -80,7 +80,7 @@ else:
     }
 
     # Save to a file
-    with open(f'models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl', 'wb') as f:
+    with open(f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl", 'wb') as f:
         pickle.dump(all_results, f)
 
 print(f'\n-------------------------------------------- Experimental Results --------------------------------------------')    
