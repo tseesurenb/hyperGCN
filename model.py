@@ -595,6 +595,46 @@ class NGCFConv2(MessagePassing):
   def message(self, x_j, x_i, norm, attr):
     return norm.view(-1, 1) * (self.lin_1(x_j) + self.lin_2(x_j * x_i)) * attr.view(-1, 1)
   
+  
+class GraphAttentionConv(MessagePassing):
+    def __init__(self, latent_dim, dropout, bias=True, **kwargs):
+        super(GraphAttentionConv, self).__init__(aggr='add', **kwargs)
+
+        self.dropout = dropout
+
+        self.lin = nn.Linear(latent_dim, latent_dim, bias=bias)
+        self.attn = nn.Parameter(torch.Tensor(1, latent_dim))
+        self.init_parameters()
+
+    def init_parameters(self):
+        nn.init.xavier_uniform_(self.lin.weight)
+        nn.init.xavier_uniform_(self.attn)
+
+    def forward(self, x, edge_index):
+        # Compute normalization
+        from_, to_ = edge_index
+        deg = degree(to_, x.size(0), dtype=x.dtype)
+        deg_inv_sqrt = deg.pow(-0.5)
+        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
+        norm = deg_inv_sqrt[from_] * deg_inv_sqrt[to_]
+
+        # Start propagating messages
+        out = self.propagate(edge_index, x=(x, x), norm=norm)
+
+        # Perform update after aggregation
+        out += self.lin(x)
+        out = F.dropout(out, self.dropout, self.training)
+        return F.leaky_relu(out)
+
+    def message(self, x_j, x_i, norm):
+        # Attention mechanism
+        alpha = (x_j * self.attn).sum(dim=-1)
+        alpha = F.leaky_relu(alpha)
+        alpha = torch.exp(alpha)
+        alpha = alpha / torch_scatter.scatter_add(alpha, edge_index[0], dim=0)[edge_index[0]]
+
+        return norm.view(-1, 1) * alpha.view(-1, 1) * self.lin(x_j)
+  
 class RecSysGNN(nn.Module):
   def __init__(
       self,

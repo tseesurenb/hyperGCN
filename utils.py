@@ -11,7 +11,7 @@ from sklearn.model_selection import train_test_split
 from model import RecSysGNN2, RecSysGNN
 from sklearn import preprocessing as pp
 from world import config
-from data_prep import get_edge_index,  create_jaccard_uuii_adjmat, create_jaccard_uuii_adjmat_coo
+from data_prep import get_edge_index,  create_jaccard_uuii_adjmat, create_jaccard_uuii_adjmat_coo, create_uuii_adjmat_top_k
 
 # ANSI escape codes for bold and red
 br = "\033[1;31m"
@@ -384,8 +384,8 @@ def plot_loss3(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, a
         plt.plot(epoch_list, all_knn_metrics[i]['precision'], label=f'Exp {i+1} - KNN Precision', linestyle='--', color='orange')
         
         plt.xlabel('Epoch')
-        plt.ylabel('NCDG')
-        plt.title('NCDG')
+        plt.ylabel('Recall & Precision')
+        plt.title('Recall & Precision')
         
         # Plot for metrics
         plt.subplot(1, 3, 3)
@@ -396,8 +396,8 @@ def plot_loss3(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, a
         plt.plot(epoch_list, all_knn_metrics[i]['ncdg'], label=f'Exp {i+1} - KNN NCDG', linestyle='-', color='orange')
         
         plt.xlabel('Epoch')
-        plt.ylabel('Metrics')
-        plt.title('Recall & Precision')
+        plt.ylabel('NCDG')
+        plt.title('NCDG')
         #plt.legend()
 
     # Custom Legend
@@ -461,7 +461,8 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     #knn_train_adj_df = create_uuii_adjmat2(train_df)
     #knn_train_adj_df = create_pearson_sim_uuii_adjmat(train_df, p_thresh=0.27, j_thresh=0.2)
     #knn_train_adj_df = create_pearson_sim_uuii_adjmat(train_df, p_thresh=config['pears_thresh'], j_thresh=config['jacc_thresh'])
-    knn_train_adj_df = create_jaccard_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh']) 
+    #knn_train_adj_df = create_jaccard_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'])
+    knn_train_adj_df = create_uuii_adjmat_top_k(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k']) 
     knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
 
     # Convert train_edge_index to a torch tensor if it's a numpy array

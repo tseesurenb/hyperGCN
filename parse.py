@@ -34,6 +34,9 @@ def parse_args():
     parser.add_argument('--u_sim', type=str, default='cosine')
     parser.add_argument('--i_sim', type=str, default='jaccard')
     parser.add_argument('--edge', type=str, default='bi')
+    parser.add_argument('--u_sim_top_k', type=int, default=20)
+    parser.add_argument('--i_sim_top_k', type=int, default=20)
+    
     
     # DECAY = 0.0001
     # LR = 0.005 

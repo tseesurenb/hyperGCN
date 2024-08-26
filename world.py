@@ -38,3 +38,5 @@ config['i_sim_thresh'] = args.i_sim_thresh
 config['u_sim'] = args.u_sim
 config['i_sim'] = args.i_sim
 config['edge'] = args.edge
+config['i_sim_top_k'] = args.i_sim_top_k
+config['u_sim_top_k'] = args.u_sim_top_k
