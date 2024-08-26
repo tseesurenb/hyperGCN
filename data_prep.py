@@ -172,29 +172,27 @@ def pearson_similarity_implicit(matrix, threshold=0.0, self_sim=False):
     
     return similarity_matrix
 
-def combined_similarity(matrix, p_thresh=0.0, j_thresh=0.5):
+def fusion_similarity_by_threshold(matrix, p_thresh=0.0, j_thresh=0.5, self_sim=False):
     # Compute Pearson similarity
-    mean_ratings = np.mean(matrix, axis=1, keepdims=True)
-    matrix_normalized = matrix - mean_ratings
-    pearson_matrix = np.dot(matrix_normalized, matrix_normalized.T)
-    norms = np.linalg.norm(matrix_normalized, axis=1, keepdims=True)
-    norm_matrix = np.dot(norms, norms.T)
-    pearson_matrix = np.divide(pearson_matrix, norm_matrix, out=np.zeros_like(pearson_matrix), where=norm_matrix != 0)
-    np.fill_diagonal(pearson_matrix, 0)
-    pearson_matrix[pearson_matrix < p_thresh] = 0
-    pearson_matrix = (pearson_matrix + 1) / 2  # Scale Pearson similarity to [0, 1]
+    cos_matrix = cosine_similarity_by_threshold(matrix, threshold=p_thresh, self_sim=self_sim)
 
     # Compute Jaccard similarity
-    binary_matrix = (matrix > 0).astype(int)
-    intersection = np.dot(binary_matrix, binary_matrix.T)
-    row_sums = np.sum(binary_matrix, axis=1, keepdims=True)
-    union = row_sums + row_sums.T - intersection
-    jaccard_matrix = np.divide(intersection, union, out=np.zeros_like(intersection, dtype=float), where=union != 0)
-    np.fill_diagonal(jaccard_matrix, 0)
-    jaccard_matrix[jaccard_matrix < j_thresh] = 0
+    jaccard_matrix = jaccard_similarity_by_threshold(matrix, threshold=j_thresh, self_sim=self_sim)
 
     # Combine Pearson and Jaccard similarities by multiplication
-    combined_matrix = pearson_matrix * jaccard_matrix
+    combined_matrix = cos_matrix * jaccard_matrix
+
+    return combined_matrix
+
+def fusion_similarity_by_top_k(matrix, top_k=20, self_sim=False):
+    # Compute Pearson similarity
+    cos_matrix = cosine_similarity_by_top_k(matrix, top_k=top_k, self_sim=self_sim)
+
+    # Compute Jaccard similarity
+    jaccard_matrix = jaccard_similarity_by_top_k(matrix, top_k=top_k, self_sim=self_sim)
+
+    # Combine Pearson and Jaccard similarities by multiplication
+    combined_matrix = cos_matrix * jaccard_matrix
 
     return combined_matrix
 
@@ -244,17 +242,21 @@ def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_
     
     #user_user_jaccard = jaccard_similarity(user_item_matrix.values, threshold=j_u_thresh)
     if u_sim == 'cosine':
-        user_user_jaccard = cosine_similarity_by_top_k(user_item_matrix.values, top_k=u_sim_top_k, self_sim=self_sim)
+        user_user_sim_matrix = cosine_similarity_by_top_k(user_item_matrix.values, top_k=u_sim_top_k, self_sim=self_sim)
+    elif u_sim == 'mix':
+        user_user_sim_matrix = fusion_similarity_by_top_k(user_item_matrix.values, top_k=u_sim_top_k, self_sim=self_sim)
     else:
-        user_user_jaccard = jaccard_similarity_by_top_k(user_item_matrix.values, top_k=u_sim_top_k, self_sim=self_sim)
+        user_user_sim_matrix = jaccard_similarity_by_top_k(user_item_matrix.values, top_k=u_sim_top_k, self_sim=self_sim)
     
     if i_sim == 'cosine':
-        item_item_jaccard = cosine_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self_sim)
+        item_item_sim_matrix = cosine_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self_sim)
+    elif i_sim == 'mix':
+        item_item_sim_matrix = fusion_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self
     else:
-        item_item_jaccard = jaccard_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self_sim)
+        item_item_sim_matrix = jaccard_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self_sim)
     
-    user_user_adjacency = user_user_jaccard
-    item_item_adjacency = item_item_jaccard
+    user_user_adjacency = user_user_sim_matrix
+    item_item_adjacency = item_item_sim_matrix
     
     # Dimensions
     num_users = user_user_adjacency.shape[0]
