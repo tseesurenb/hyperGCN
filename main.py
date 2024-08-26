@@ -23,6 +23,20 @@ columns_name=['user_id','item_id','rating','timestamp']
 df = pd.read_csv("data/raw/ml-100k/u.data",sep="\t",names=columns_name)
 df = df[df['rating']>=3] # How many ratings are a 3 or above?
 
+#ratings_path = f'data/raw/yelp/yelp_reviews.csv'
+#df = pd.read_csv(ratings_path, sep=',')
+# Select and rename the columns to match the desired format
+#df = df[['user_id', 'item_id', 'rating', 'timestamp']]
+#df = df[df['rating']>=3] # How many ratings are a 3 or above?
+
+#user_interaction_counts = df['user_id'].value_counts()
+#filtered_users = user_interaction_counts[user_interaction_counts >= 200].index
+        
+#print('Number of users after threshold {min_interaction_threshold}:', len(filtered_users))
+        
+# Create a copy of the DataFrame to avoid SettingWithCopyWarning
+#df = df[df['user_id'].isin(filtered_users)]
+        
 num_users = df['user_id'].nunique()
 num_items = df['item_id'].nunique()
 num_interactions = len(df)
@@ -41,7 +55,9 @@ config['edge'] = 'bi'
 all_bi_metrics = []
 all_bi_losses = []
 
-file_path = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl"
+file_path = f"models/LightGCN_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl"
+
+#file_path = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl"
 
 # Check if the results file exists
 if os.path.exists(file_path):

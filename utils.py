@@ -13,7 +13,7 @@ import pandas as pd
 import torch.nn.functional as F
 
 from sklearn.model_selection import train_test_split
-from model import RecSysGNN2, RecSysGNN
+from model import RecSysGNN
 from sklearn import preprocessing as pp
 from world import config
 from data_prep import get_edge_index, create_uuii_adjmat_by_top_k, create_uuii_adjmat_by_threshold
@@ -133,7 +133,7 @@ def batch_data_loader(data, batch_size, n_usr, n_itm, device):
         torch.LongTensor(list(neg_items)).to(device) + n_usr
     )
     
-def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, K, device, exp_n, g_seed):
+def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     losses = {
         'loss': [],
@@ -149,7 +149,7 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
     }
 
     pbar = tqdm(range(epochs), bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', ascii="░❯")
-    pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | # of edges {len(train_edge_index[0])}')
+    pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6}')
     
     for epoch in pbar:
         n_batch = int(len(train_df)/batch_size)
@@ -184,7 +184,7 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
             _, out = model(train_edge_index, train_edge_attrs)
             final_user_Embed, final_item_Embed = torch.split(out, (n_users, n_items))
             test_topK_recall,  test_topK_precision, test_ncdg = get_metrics(
-                final_user_Embed, final_item_Embed, n_users, n_items, train_df, test_df, K, device
+                final_user_Embed, final_item_Embed, n_users, n_items, train_df, test_df, topK, device
             )
         
         f1 = (2 * test_topK_recall * test_topK_precision) / (test_topK_recall + test_topK_precision)
@@ -350,6 +350,9 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
     knn_train_adj_df = create_uuii_adjmat_by_top_k(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
     knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
+    
+    #print(len(knn_train_edge_index[0]))
+    #print(len(train_edge_attrs))
 
     # Convert train_edge_index to a torch tensor if it's a numpy array
     if isinstance(knn_train_edge_index, np.ndarray):
