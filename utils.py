@@ -300,7 +300,7 @@ def plot_loss3(plot_name, num_exp, epochs, all_bi_losses, all_bi_metrics, all_kn
     
     plt.tight_layout()  # Adjust spacing between subplots
     plt.show()
-    plt.savefig('res/' + plot_name + '.png')  # Save plot to file
+    plt.savefig('models/' + plot_name + '.png')  # Save plot to file
     
 def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
