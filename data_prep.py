@@ -180,7 +180,7 @@ def fusion_similarity_by_threshold(matrix, p_thresh=0.0, j_thresh=0.5, self_sim=
     jaccard_matrix = jaccard_similarity_by_threshold(matrix, threshold=j_thresh, self_sim=self_sim)
 
     # Combine Pearson and Jaccard similarities by multiplication
-    combined_matrix = cos_matrix * jaccard_matrix
+    combined_matrix = cos_matrix + jaccard_matrix
 
     return combined_matrix
 
@@ -192,7 +192,7 @@ def fusion_similarity_by_top_k(matrix, top_k=20, self_sim=False):
     jaccard_matrix = jaccard_similarity_by_top_k(matrix, top_k=top_k, self_sim=self_sim)
 
     # Combine Pearson and Jaccard similarities by multiplication
-    combined_matrix = cos_matrix * jaccard_matrix
+    combined_matrix = cos_matrix + jaccard_matrix
 
     return combined_matrix
 
