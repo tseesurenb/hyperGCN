@@ -56,7 +56,7 @@ all_bi_metrics = []
 all_bi_losses = []
 
 file_name = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}"
-file_path = file_name + ".pkl"
+file_path = file_name + "_experiment_results.pkl"
 
 #file_path = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl"
 
