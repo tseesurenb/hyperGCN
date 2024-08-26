@@ -251,7 +251,7 @@ def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_
     if i_sim == 'cosine':
         item_item_sim_matrix = cosine_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self_sim)
     elif i_sim == 'mix':
-        item_item_sim_matrix = fusion_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self
+        item_item_sim_matrix = fusion_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self_sim)
     else:
         item_item_sim_matrix = jaccard_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self_sim)
     
