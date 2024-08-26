@@ -40,4 +40,4 @@ config['i_sim'] = args.i_sim
 config['edge'] = args.edge
 config['i_sim_top_k'] = args.i_sim_top_k
 config['u_sim_top_k'] = args.u_sim_top_k
-config['self_sim'] = args.self_sim
+config['self_sim'] = bool(args.self_sim)
