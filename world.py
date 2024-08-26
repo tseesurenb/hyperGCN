@@ -1,6 +1,6 @@
 '''
-Created on Oct 12, 2023
-Pytorch Implementation of tempLGCN: Time-Aware Collaborative Filtering with Graph Convolutional Networks
+Created on Sep 1, 2024
+Pytorch Implementation of hyperGCN: Hyper Graph Convolutional Networks for Collaborative Filtering
 '''
 
 import os
@@ -40,3 +40,4 @@ config['i_sim'] = args.i_sim
 config['edge'] = args.edge
 config['i_sim_top_k'] = args.i_sim_top_k
 config['u_sim_top_k'] = args.u_sim_top_k
+config['self_sim'] = args.self_sim

@@ -1,3 +1,8 @@
+'''
+Created on Sep 1, 2024
+Pytorch Implementation of hyperGCN: Hyper Graph Convolutional Networks for Collaborative Filtering
+'''
+
 import torch
 import random
 import matplotlib.pyplot as plt
@@ -11,7 +16,7 @@ from sklearn.model_selection import train_test_split
 from model import RecSysGNN2, RecSysGNN
 from sklearn import preprocessing as pp
 from world import config
-from data_prep import get_edge_index,  create_jaccard_uuii_adjmat, create_jaccard_uuii_adjmat_coo, create_uuii_adjmat_top_k
+from data_prep import get_edge_index, create_uuii_adjmat_by_top_k, create_uuii_adjmat_by_threshold
 
 # ANSI escape codes for bold and red
 br = "\033[1;31m"
@@ -99,54 +104,6 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
 
     return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
 
-def get_metrics2(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
-    # Ensure the embeddings are on the correct device
-    user_Embed_wts = user_Embed_wts.to(device)
-    item_Embed_wts = item_Embed_wts.to(device)
-    
-    # Get unique test user IDs and move to device
-    test_user_ids = torch.LongTensor(test_data['user_id_idx'].unique()).to(device)
-    
-    # Compute the relevance scores for all user-item pairs
-    relevance_score = torch.matmul(user_Embed_wts, torch.transpose(item_Embed_wts, 0, 1))
-    
-    # Create sparse tensor for all user-item interactions in the training set
-    interaction_indices = torch.stack((
-        torch.LongTensor(train_data['user_id_idx'].values),
-        torch.LongTensor(train_data['item_id_idx'].values)
-    )).to(device)
-    interaction_values = torch.ones((len(train_data)), dtype=torch.float32).to(device)
-    
-    # Convert to dense tensor
-    interactions_t = torch.sparse_coo_tensor(interaction_indices, interaction_values, (n_users, n_items)).to_dense()
-    
-    # Mask out training user-item interactions from relevance scores
-    relevance_score = relevance_score * (1 - interactions_t)
-    
-    # Compute top K scoring items for each user
-    topk_relevance_indices = torch.topk(relevance_score, K).indices
-    
-    # Move top K indices to CPU and create DataFrame
-    topk_relevance_indices_cpu = topk_relevance_indices.cpu()
-    topk_columns = [f'top_indx_{x+1}' for x in range(K)]
-    topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices_cpu.numpy(), columns=topk_columns)
-    
-    # Add user IDs and create a list of top K relevant items for each user
-    topk_relevance_indices_df['user_ID'] = topk_relevance_indices_df.index
-    topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[topk_columns].values.tolist()
-    topk_relevance_indices_df = topk_relevance_indices_df[['user_ID', 'top_rlvnt_itm']]
-    
-    # Measure overlap between recommended (top-scoring) and held-out user-item interactions
-    test_interacted_items = test_data.groupby('user_id_idx')['item_id_idx'].apply(list).reset_index()
-    metrics_df = pd.merge(test_interacted_items, topk_relevance_indices_df, how='left', left_on='user_id_idx', right_on='user_ID')
-    metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df['item_id_idx'], metrics_df['top_rlvnt_itm'])]
-    
-    # Compute recall and precision
-    metrics_df['recall'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / len(x['item_id_idx']), axis=1)
-    metrics_df['precision'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / K, axis=1)
-    
-    return metrics_df['recall'].mean(), metrics_df['precision'].mean()
-
 def batch_data_loader(data, batch_size, n_usr, n_itm, device):
 
     def sample_neg(x):
@@ -174,47 +131,6 @@ def batch_data_loader(data, batch_size, n_usr, n_itm, device):
         torch.LongTensor(list(users)).to(device), 
         torch.LongTensor(list(pos_items)).to(device) + n_usr,
         torch.LongTensor(list(neg_items)).to(device) + n_usr
-    )
-    
-def batch_data_loader2(data, batch_size, n_usr, n_itm, device):
-
-    def sample_neg(x):
-        while True:
-            neg_id = random.randint(0, n_itm - 1)
-            if neg_id not in x:
-                return neg_id
-
-    # Reindex users and items
-    #unique_users = data['user_id'].unique()
-    #unique_items = data['item_id'].unique()
-
-    #user_mapping = {user_id: i for i, user_id in enumerate(unique_users)}
-    #item_mapping = {item_id: i + n_usr for i, item_id in enumerate(unique_items)}
-
-    #data['user_id_idx'] = data['user_id'].map(user_mapping)
-    #data['item_id_idx'] = data['item_id'].map(item_mapping)
-
-    # Group by reindexed user IDs
-    interacted_items_df = data.groupby('user_id_idx')['item_id_idx'].apply(list).reset_index()
-    indices = [x for x in range(n_usr)]
-
-    # Sample users
-    if n_usr < batch_size:
-        users = [random.choice(indices) for _ in range(batch_size)]
-    else:
-        users = random.sample(indices, batch_size)
-    users.sort()
-    users_df = pd.DataFrame(users, columns=['users'])
-
-    # Merge to get positive and negative items
-    interacted_items_df = pd.merge(interacted_items_df, users_df, how='right', left_on='user_id_idx', right_on='users')
-    pos_items = interacted_items_df['item_id_idx'].apply(lambda x: random.choice(x)).values
-    neg_items = interacted_items_df['item_id_idx'].apply(lambda x: sample_neg(x)).values
-
-    return (
-        torch.LongTensor(list(users)).to(device),
-        torch.LongTensor(list(pos_items)).to(device),
-        torch.LongTensor(list(neg_items)).to(device)
     )
     
 def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, K, device, exp_n, g_seed):
@@ -287,7 +203,7 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
 
     return (losses, metrics)
     
-def plot_loss(num_exp, epochs, light_loss, light_bpr, light_reg, light_recall, light_precision):
+def plot_loss(num_exp, epochs, light_loss, light_bpr, light_reg, light_recall, light_precision, light_ncdg):
 
     # Plot for losses
     plt.figure(figsize=(14, 5))  # Adjust figure size as needed
@@ -295,7 +211,7 @@ def plot_loss(num_exp, epochs, light_loss, light_bpr, light_reg, light_recall, l
     for i in range(num_exp):
         epoch_list = [(i+1) for i in range(epochs)]
         
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 3, 1)
         
         plt.plot(epoch_list, light_loss, label='Total Training Loss')
         plt.plot(epoch_list, light_bpr, label='BPR Training Loss')
@@ -306,46 +222,20 @@ def plot_loss(num_exp, epochs, light_loss, light_bpr, light_reg, light_recall, l
         plt.legend()
 
         # Plot for metrics
-        plt.subplot(1, 2, 2)
+        plt.subplot(1, 3, 2)
         plt.plot(epoch_list, light_recall, label='Recall')
         plt.plot(epoch_list, light_precision, label='Precision')
         plt.xlabel('Epoch')
-        plt.ylabel('Metrics')
-        plt.title('Metrics')
+        plt.ylabel('Recall & Precision')
+        plt.title('Recall & Precision')
         plt.legend()
-
-    plt.tight_layout()  # Adjust spacing between subplots
-    plt.show()
-
-def plot_loss2(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, all_knn_metrics):
-
-    # Plot for losses
-    plt.figure(figsize=(14, 5))  # Adjust figure size as needed
-    
-    for i in range(num_exp):
-        epoch_list = [(j+1) for j in range(epochs)]
         
-        plt.subplot(1, 2, 1)        
-        plt.plot(epoch_list, all_bi_losses[i]['loss'], label=f'Exp {i+1} - Total Training Loss')
-        plt.plot(epoch_list, all_bi_losses[i]['bpr_loss'], label=f'Exp {i+1} - BPR Training Loss')
-        plt.plot(epoch_list, all_bi_losses[i]['reg_loss'], label=f'Exp {i+1} - Reg Training Loss')
-        plt.plot(epoch_list, all_knn_losses[i]['loss'], label=f'Exp {i+1} - Total Training Loss')
-        plt.plot(epoch_list, all_knn_losses[i]['bpr_loss'], label=f'Exp {i+1} - BPR Training Loss')
-        plt.plot(epoch_list, all_knn_losses[i]['reg_loss'], label=f'Exp {i+1} - Reg Training Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.title('Training Losses')
-        plt.legend()
-
         # Plot for metrics
-        plt.subplot(1, 2, 2)
-        plt.plot(epoch_list, all_bi_metrics[i]['recall'], label=f'Exp {i+1} - Recall')
-        plt.plot(epoch_list, all_bi_metrics[i]['precision'], label=f'Exp {i+1} - Precision')
-        plt.plot(epoch_list, all_knn_metrics[i]['recall'], label=f'Exp {i+1} - Recall')
-        plt.plot(epoch_list, all_knn_metrics[i]['precision'], label=f'Exp {i+1} - Precision')
+        plt.subplot(1, 3, 3)
+        plt.plot(epoch_list, light_ncdg, label='NCDG')
         plt.xlabel('Epoch')
-        plt.ylabel('Metrics')
-        plt.title('Metrics')
+        plt.ylabel('NCDG')
+        plt.title('NCDG')
         plt.legend()
 
     plt.tight_layout()  # Adjust spacing between subplots
@@ -409,7 +299,6 @@ def plot_loss3(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, a
     plt.show()
     
 def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
-    
 
     train_test_ratio = config['test_ratio']
     train, test = train_test_split(df.values, test_size=train_test_ratio, random_state=g_seed)
@@ -458,11 +347,8 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
       torch.cat([i_t, u_t])
     )).to(device)
          
-    #knn_train_adj_df = create_uuii_adjmat2(train_df)
-    #knn_train_adj_df = create_pearson_sim_uuii_adjmat(train_df, p_thresh=0.27, j_thresh=0.2)
-    #knn_train_adj_df = create_pearson_sim_uuii_adjmat(train_df, p_thresh=config['pears_thresh'], j_thresh=config['jacc_thresh'])
-    #knn_train_adj_df = create_jaccard_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'])
-    knn_train_adj_df = create_uuii_adjmat_top_k(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k']) 
+    #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
+    knn_train_adj_df = create_uuii_adjmat_by_top_k(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
     knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
 
     # Convert train_edge_index to a torch tensor if it's a numpy array
@@ -497,8 +383,6 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     IS_TEMP = config['enable_temp_emb']
     MODEL = config['model']
 
-    #print(f'LATENT_DIM: {LATENT_DIM} | N_LAYERS: {N_LAYERS} | JACCARD: {config['jacc_thresh']} | PEARSON: {config['pears_thresh']} | BATCH_SIZE: {BATCH_SIZE} | DECAY: {DECAY} | topK: {K} | IS_TEMP: {IS_TEMP} | MODEL: {MODEL}')
-
     lightgcn = RecSysGNN(
       latent_dim=LATENT_DIM, 
       num_layers=N_LAYERS,
@@ -531,7 +415,6 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
                                      g_seed)
 
     if verbose >= 1:
-        plot_loss(EPOCHS, losses['loss'],  losses['bpr_loss'],  losses['reg_loss'], metrics['recall'], metrics['precision'])
+        plot_loss(EPOCHS, losses['loss'],  losses['bpr_loss'],  losses['reg_loss'], metrics['recall'], metrics['precision'], metrics['ncdg'])
         
-    
     return losses, metrics

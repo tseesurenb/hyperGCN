@@ -1,3 +1,8 @@
+'''
+Created on Sep 1, 2024
+Pytorch Implementation of hyperGCN: Hyper Graph Convolutional Networks for Collaborative Filtering
+'''
+
 import torch
 from torch import nn, Tensor
 from torch.nn import Linear, Parameter

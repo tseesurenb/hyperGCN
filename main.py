@@ -1,9 +1,14 @@
+'''
+Created on Sep 1, 2024
+Pytorch Implementation of hyperGCN: Hyper Graph Convolutional Networks for Collaborative Filtering
+'''
+
 import pandas as pd
 import torch
 import torch.backends
 import torch.mps
 import numpy as np
-from utils import run_experiment, plot_loss2, plot_loss3
+from utils import run_experiment, plot_loss3
 import data_prep as dp 
 from world import config
 import pickle
@@ -90,7 +95,7 @@ else:
 
 print(f'\n-------------------------------------------- Experimental Results --------------------------------------------')    
 print(f"Dataset: {config['dataset']}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}")
-print(f"MODEL: {config['model']} | EDGE TYPE: {config['edge']} | LATENT_DIM: {config['emb_dim']} | N_LAYERS: {config['layers']} | SIMILARITY: u - {config['u_sim']} with {config['u_sim_thresh']}, i - {config['i_sim']} with {config['i_sim_thresh']} | BATCH_SIZE: {config['batch_size']} | DECAY: {config['decay']} | topK: {config['top_k']} | IS_TEMP: {config['enable_temp_emb']}")
+print(f"MODEL: {config['model']} | EDGE TYPE: {config['edge']} | LATENT_DIM: {config['emb_dim']} | N_LAYERS: {config['layers']} | SIMILARITY: u - {config['u_sim']} with top K {config['u_sim_top_k']}, i - {config['i_sim']} with top K {config['i_sim_top_k']} | Self-sim {config['self_sim']} | BATCH_SIZE: {config['batch_size']} | DECAY: {config['decay']} | topK: {config['top_k']} | IS_TEMP: {config['enable_temp_emb']}")
 print(f"  Recall: {recalls[0]:.4f}, {recalls[1]:.4f}, {recalls[2]:.4f}, {recalls[3]:.4f}, {recalls[4]:.4f} | {round(np.mean(recalls), 4):.4f}, {round(np.std(recalls), 4):.4f}")
 print(f"    Prec: {precs[0]:.4f}, {precs[1]:.4f}, {precs[2]:.4f}, {precs[3]:.4f}, {precs[4]:.4f} | {round(np.mean(precs), 4):.4f}, {round(np.std(precs), 4):.4f}")
 print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {round(np.mean(f1s), 4):.4f}, {round(np.std(f1s), 4):.4f}")
@@ -129,7 +134,7 @@ for seed in seeds:
 
 print(f'\n-------------------------------------------- Experimental Results --------------------------------------------')    
 print(f"Dataset: {config['dataset']}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}")
-print(f"MODEL: {config['model']} | EDGE TYPE: {config['edge']} | LATENT_DIM: {config['emb_dim']} | N_LAYERS: {config['layers']} | SIMILARITY: u - {config['u_sim']} with {config['u_sim_thresh']}, i - {config['i_sim']} with {config['i_sim_thresh']} | BATCH_SIZE: {config['batch_size']} | DECAY: {config['decay']} | topK: {config['top_k']} | IS_TEMP: {config['enable_temp_emb']}")
+print(f"MODEL: {config['model']} | EDGE TYPE: {config['edge']} | LATENT_DIM: {config['emb_dim']} | N_LAYERS: {config['layers']} | SIMILARITY: u - {config['u_sim']} with top K {config['u_sim_top_k']}, i - {config['i_sim']} with top K {config['i_sim_top_k']} | Self-sim {config['self_sim']} | BATCH_SIZE: {config['batch_size']} | DECAY: {config['decay']} | topK: {config['top_k']} | IS_TEMP: {config['enable_temp_emb']}")
 print(f"  Recall: {recalls[0]:.4f}, {recalls[1]:.4f}, {recalls[2]:.4f}, {recalls[3]:.4f}, {recalls[4]:.4f} | {round(np.mean(recalls), 4):.4f}, {round(np.std(recalls), 4):.4f}")
 print(f"    Prec: {precs[0]:.4f}, {precs[1]:.4f}, {precs[2]:.4f}, {precs[3]:.4f}, {precs[4]:.4f} | {round(np.mean(precs), 4):.4f}, {round(np.std(precs), 4):.4f}")
 print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {round(np.mean(f1s), 4):.4f}, {round(np.std(f1s), 4):.4f}")

@@ -1,50 +1,13 @@
-# %%
+'''
+Created on Sep 1, 2024
+Pytorch Implementation of hyperGCN: Hyper Graph Convolutional Networks for Collaborative Filtering
+'''
+
 import pandas as pd
 import numpy as np
 from scipy.sparse import coo_matrix
 from scipy.stats import pearsonr
 from sklearn.metrics.pairwise import cosine_similarity
-
-def create_uuii_adjmat(df):
-    # Unique users and items
-    unique_users = df['user_id'].unique()
-    unique_items = df['item_id'].unique()
-
-    # Create mappings
-    user_mapping = {user_id: i for i, user_id in enumerate(unique_users)}
-    item_mapping = {item_id: i + len(unique_users) for i, item_id in enumerate(unique_items)}
-
-    # Apply mappings
-    df['user_id_idx'] = df['user_id'].map(user_mapping)
-    df['item_id_idx'] = df['item_id'].map(item_mapping)
-
-    # Create user-item matrix
-    user_item_matrix = df.pivot(index='user_id_idx', columns='item_id_idx', values='item_id').notnull().astype(int)
-
-    # Compute user-user adjacency matrix
-    user_user_adjacency = user_item_matrix.dot(user_item_matrix.T)
-    user_user_adjacency[user_user_adjacency > 0] = 1  # Convert to binary adjacency matrix
-
-    # Compute item-item adjacency matrix
-    item_user_matrix = user_item_matrix.T
-    item_item_adjacency = item_user_matrix.dot(item_user_matrix.T)
-    item_item_adjacency[item_item_adjacency > 0] = 1  # Convert to binary adjacency matrix
-
-    # Dimensions
-    num_users = user_user_adjacency.shape[0]
-    num_items = item_item_adjacency.shape[0]
-    total_size = num_users + num_items
-
-    # Initialize combined adjacency matrix
-    combined_adjacency = np.zeros((total_size, total_size))
-
-    # Fill in the user-user and item-item parts
-    combined_adjacency[:num_users, :num_users] = user_user_adjacency
-    combined_adjacency[num_users:, num_users:] = item_item_adjacency
-
-    # Convert to DataFrame for readability
-    combined_adjacency_df = pd.DataFrame(combined_adjacency)
-    return combined_adjacency_df
 
 def get_edge_index(matrix_df):
     # Convert the DataFrame to a numpy array
@@ -63,39 +26,7 @@ def get_edge_index(matrix_df):
     
     return edge_index, data
 
-
-def create_uuii_adjmat2(df):
-       
-    # Create user-item matrix
-    user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='item_id', aggfunc='count', fill_value=0)
-
-    # Compute user-user adjacency matrix (number of common items)
-    user_user_adjacency = user_item_matrix.dot(user_item_matrix.T)
-    np.fill_diagonal(user_user_adjacency.values, 0)  # Remove self-loops
-
-    # Compute item-item adjacency matrix (number of common users)
-    item_user_matrix = user_item_matrix.T
-    item_item_adjacency = item_user_matrix.dot(item_user_matrix.T)
-    np.fill_diagonal(item_item_adjacency.values, 0)  # Remove self-loops
-    
-    # Dimensions
-    num_users = user_user_adjacency.shape[0]
-    num_items = item_item_adjacency.shape[0]
-    total_size = num_users + num_items
-
-    # Initialize combined adjacency matrix
-    combined_adjacency = np.zeros((total_size, total_size))
-
-    # Fill in the user-user and item-item parts
-    combined_adjacency[:num_users, :num_users] = user_user_adjacency
-    combined_adjacency[num_users:, num_users:] = item_item_adjacency
-
-    # Convert to DataFrame for readability
-    combined_adjacency_df = pd.DataFrame(combined_adjacency)
-
-    return combined_adjacency_df
-
-def jaccard_similarity_by_threshold(matrix, threshold=0.0):
+def jaccard_similarity_by_threshold(matrix, threshold=0.0, self_sim=False):
     
     binary_matrix = (matrix > 0).astype(int)
     
@@ -107,13 +38,16 @@ def jaccard_similarity_by_threshold(matrix, threshold=0.0):
     
     similarity_matrix = np.divide(intersection, union, out=np.zeros_like(intersection, dtype=float), where=union!=0)
     
-    np.fill_diagonal(similarity_matrix, 0)
+    if not self_sim:
+        np.fill_diagonal(similarity_matrix, 0)
+    else:
+        np.fill_diagonal(similarity_matrix, 1)
     
     similarity_matrix[similarity_matrix < threshold] = 0
     
     return similarity_matrix
 
-def jaccard_similarity_by_top_k(matrix, top_k=20):
+def jaccard_similarity_by_top_k(matrix, top_k=20, self_sim=False):
     binary_matrix = (matrix > 0).astype(int)
     
     intersection = np.dot(binary_matrix, binary_matrix.T)
@@ -124,7 +58,10 @@ def jaccard_similarity_by_top_k(matrix, top_k=20):
     
     similarity_matrix = np.divide(intersection, union, out=np.zeros_like(intersection, dtype=float), where=union!=0)
     
-    np.fill_diagonal(similarity_matrix, 0)
+    if not self_sim:
+        np.fill_diagonal(similarity_matrix, 0)
+    else:
+        np.fill_diagonal(similarity_matrix, 1)
     
     # Filter top K values for each row
     top_k_indices = np.argsort(-similarity_matrix, axis=1)[:, :top_k]
@@ -136,27 +73,32 @@ def jaccard_similarity_by_top_k(matrix, top_k=20):
     
     return filtered_similarity_matrix
 
-def cosine_similarity_by_threshold(matrix, threshold=0.0):
+def cosine_similarity_by_threshold(matrix, threshold=0.0, self_sim=False):
     # Convert the matrix to binary (implicit feedback)
     binary_matrix = (matrix > 0).astype(int)
     
     # Compute cosine similarity on the binary matrix
     similarity_matrix = cosine_similarity(binary_matrix)
     
-    # Set the diagonal to zero (no self-similarity)
-    np.fill_diagonal(similarity_matrix, 0)
+    if not self_sim:
+        np.fill_diagonal(similarity_matrix, 0) # Set the diagonal to zero (no self-similarity)
+    else:
+        np.fill_diagonal(similarity_matrix, 1)
     
     # Apply the threshold
     similarity_matrix[similarity_matrix < threshold] = 0
     
     return similarity_matrix
 
-def cosine_similarity_by_top_k(matrix, top_k=20):
+def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False):
     binary_matrix = (matrix > 0).astype(int)
     
     similarity_matrix = cosine_similarity(binary_matrix)
     
-    np.fill_diagonal(similarity_matrix, 0)
+    if not self_sim:
+        np.fill_diagonal(similarity_matrix, 0) # Set the diagonal to zero (no self-similarity)
+    else:
+        np.fill_diagonal(similarity_matrix, 1)
     
     # Filter top K values for each row
     top_k_indices = np.argsort(-similarity_matrix, axis=1)[:, :top_k]
@@ -168,7 +110,7 @@ def cosine_similarity_by_top_k(matrix, top_k=20):
     
     return filtered_similarity_matrix
 
-def tanimoto_similarity(matrix, threshold=0.0):
+def tanimoto_similarity(matrix, threshold=0.0, self_sim=False):
     # Convert the matrix to binary (implicit feedback)
     binary_matrix = (matrix > 0).astype(int)
     
@@ -184,20 +126,28 @@ def tanimoto_similarity(matrix, threshold=0.0):
     # Calculate Tanimoto (Jaccard) similarity
     similarity_matrix = dot_product / denominator
     
-    # Set the diagonal to zero (no self-similarity)
-    np.fill_diagonal(similarity_matrix, 0)
+    if not self_sim:
+        np.fill_diagonal(similarity_matrix, 0) # Set the diagonal to zero (no self-similarity)
+    else:
+        np.fill_diagonal(similarity_matrix, 1)
     
     # Apply the threshold
     similarity_matrix[similarity_matrix < threshold] = 0
     
     return similarity_matrix
     
-def pearson_similarity(matrix, threshold=0.0):
-    # Normalize the matrix (subtract mean of each row)
-    mean_ratings = np.mean(matrix, axis=1, keepdims=True)
-    matrix_normalized = matrix - mean_ratings
+def pearson_similarity_implicit(matrix, threshold=0.0, self_sim=False):
+    # Convert matrix to boolean to handle implicit data (1/0)
+    matrix = np.where(matrix > 0, 1, 0)
     
-    print(matrix_normalized)
+    # Calculate the sum of the matrix rows
+    row_sums = np.sum(matrix, axis=1, keepdims=True)
+    
+    # Handle cases where a row sum is zero (no interactions)
+    row_sums[row_sums == 0] = 1  # Prevent division by zero
+
+    # Normalize by the row sums (like a normalized interaction count)
+    matrix_normalized = matrix / row_sums
     
     # Compute the dot product between all pairs of rows
     similarity_matrix = np.dot(matrix_normalized, matrix_normalized.T)
@@ -212,7 +162,10 @@ def pearson_similarity(matrix, threshold=0.0):
     similarity_matrix = np.divide(similarity_matrix, norm_matrix, out=np.zeros_like(similarity_matrix), where=norm_matrix!=0)
     
     # Set diagonal to zero to remove self-loops
-    np.fill_diagonal(similarity_matrix, 0)
+    if not self_sim:
+        np.fill_diagonal(similarity_matrix, 0) # Set the diagonal to zero (no self-similarity)
+    else:
+        np.fill_diagonal(similarity_matrix, 1)
     
     # Apply the threshold
     similarity_matrix[similarity_matrix < threshold] = 0
@@ -244,66 +197,25 @@ def combined_similarity(matrix, p_thresh=0.0, j_thresh=0.5):
     combined_matrix = pearson_matrix * jaccard_matrix
 
     return combined_matrix
-    
-def create_pearson_sim_uuii_adjmat(df, p_thresh=0.0, j_thresh=0.5):
-    # Create user-item matrix
-    user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0)
 
-    p_thresh = p_thresh
-    # Compute user-user Pearson similarity matrix
-    user_user_pearson = pearson_similarity(user_item_matrix.values, threshold=p_thresh)
-    # print(user_user_adjacency)
-
-    # Compute item-item Pearson similarity matrix
-    item_user_matrix = user_item_matrix.T
-    item_item_pearson = pearson_similarity(item_user_matrix.values, threshold=p_thresh)
-    
-    j_thresh = j_thresh
-    
-    user_user_jaccard = jaccard_similarity(user_item_matrix.values, threshold=j_thresh)
-    item_item_jaccard = jaccard_similarity(user_item_matrix.T.values, threshold=j_thresh)
-    
-    user_user_adjacency = user_user_pearson * user_user_jaccard
-    item_item_adjacency = item_item_pearson * item_item_jaccard
-    
-    #user_user_adjacency = user_user_jaccard
-    #item_item_adjacency = item_item_jaccard
-    
-    # Dimensions
-    num_users = user_user_adjacency.shape[0]
-    num_items = item_item_adjacency.shape[0]
-    total_size = num_users + num_items
-
-    # Initialize combined adjacency matrix
-    combined_adjacency = np.zeros((total_size, total_size))
-
-    # Fill in the user-user and item-item parts
-    combined_adjacency[:num_users, :num_users] = user_user_adjacency
-    combined_adjacency[num_users:, num_users:] = item_item_adjacency
-
-    # Convert to DataFrame for readability
-    combined_adjacency_df = pd.DataFrame(combined_adjacency)
-
-    return combined_adjacency_df
-
-def create_jaccard_uuii_adjmat(df, u_sim='consine', i_sim='jaccard', u_sim_thresh=0.3, i_sim_thresh=0.3):
+def create_uuii_adjmat_by_threshold(df, u_sim='consine', i_sim='jaccard', u_sim_thresh=0.3, i_sim_thresh=0.3, self_sim=False):
     # Create user-item matrix
     user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0)
     
     #user_user_jaccard = jaccard_similarity(user_item_matrix.values, threshold=j_u_thresh)
     if u_sim == 'cosine':
-        user_user_jaccard = cosine_similarity_by_threshold(user_item_matrix.values, threshold=u_sim_thresh)
+        user_user_jaccard = cosine_similarity_by_threshold(user_item_matrix.values, threshold=u_sim_thresh, self_sim=self_sim)
     elif u_sim == 'tanimoto':
-        user_user_jaccard = tanimoto_similarity(user_item_matrix.values, threshold=u_sim_thresh)
+        user_user_jaccard = tanimoto_similarity(user_item_matrix.values, threshold=u_sim_thresh, self_sim=self_sim)
     else:
-        user_user_jaccard = jaccard_similarity_by_threshold(user_item_matrix.values, threshold=u_sim_thresh)
+        user_user_jaccard = jaccard_similarity_by_threshold(user_item_matrix.values, threshold=u_sim_thresh, self_sim=self_sim)
     
     if i_sim == 'cosine':
-        item_item_jaccard = cosine_similarity_by_threshold(user_item_matrix.T.values, threshold=i_sim_thresh)
+        item_item_jaccard = cosine_similarity_by_threshold(user_item_matrix.T.values, threshold=i_sim_thresh, self_sim=self_sim)
     elif i_sim == 'tanimoto':
-        item_item_jaccard = tanimoto_similarity(user_item_matrix.T.values, threshold=i_sim_thresh)
+        item_item_jaccard = tanimoto_similarity(user_item_matrix.T.values, threshold=i_sim_thresh, self_sim=self_sim)
     else:
-        item_item_jaccard = jaccard_similarity_by_threshold(user_item_matrix.T.values, threshold=i_sim_thresh)
+        item_item_jaccard = jaccard_similarity_by_threshold(user_item_matrix.T.values, threshold=i_sim_thresh, self_sim=self_sim)
     
     user_user_adjacency = user_user_jaccard
     item_item_adjacency = item_item_jaccard
@@ -326,20 +238,20 @@ def create_jaccard_uuii_adjmat(df, u_sim='consine', i_sim='jaccard', u_sim_thres
     return combined_adjacency_df
 
 
-def create_uuii_adjmat_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_k=20, i_sim_top_k=20):
+def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_k=20, i_sim_top_k=20, self_sim=False):
     # Create user-item matrix
     user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0)
     
     #user_user_jaccard = jaccard_similarity(user_item_matrix.values, threshold=j_u_thresh)
     if u_sim == 'cosine':
-        user_user_jaccard = cosine_similarity_by_top_k(user_item_matrix.values, top_k=u_sim_top_k)
+        user_user_jaccard = cosine_similarity_by_top_k(user_item_matrix.values, top_k=u_sim_top_k, self_sim=self_sim)
     else:
-        user_user_jaccard = jaccard_similarity_by_top_k(user_item_matrix.values, top_k=u_sim_top_k)
+        user_user_jaccard = jaccard_similarity_by_top_k(user_item_matrix.values, top_k=u_sim_top_k, self_sim=self_sim)
     
     if i_sim == 'cosine':
-        item_item_jaccard = cosine_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k)
+        item_item_jaccard = cosine_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self_sim)
     else:
-        item_item_jaccard = jaccard_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k)
+        item_item_jaccard = jaccard_similarity_by_top_k(user_item_matrix.T.values, top_k=i_sim_top_k, self_sim=self_sim)
     
     user_user_adjacency = user_user_jaccard
     item_item_adjacency = item_item_jaccard
@@ -360,36 +272,3 @@ def create_uuii_adjmat_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_k=2
     combined_adjacency_df = pd.DataFrame(combined_adjacency)
     
     return combined_adjacency_df
-
-def create_jaccard_uuii_adjmat_coo(df, j_u_thresh=0.5, j_i_thresh=0.5):
-    # Create user-item matrix
-    user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0)
-
-    # Calculate Jaccard similarity matrices
-    user_user_jaccard = jaccard_similarity_by_threshold(user_item_matrix.values, threshold=j_u_thresh)
-    item_item_jaccard = jaccard_similarity_by_threshold(user_item_matrix.T.values, threshold=j_i_thresh)
-    
-    # Dimensions
-    num_users = user_user_jaccard.shape[0]
-    num_items = item_item_jaccard.shape[0]
-    total_size = num_users + num_items
-
-    # Initialize row, col, and data lists for the COO matrix
-    rows, cols, data = [], [], []
-
-    # Fill in the user-user part
-    user_user_indices = np.nonzero(user_user_jaccard)
-    rows.extend(user_user_indices[0])
-    cols.extend(user_user_indices[1])
-    data.extend(user_user_jaccard[user_user_indices])
-
-    # Fill in the item-item part
-    item_item_indices = np.nonzero(item_item_jaccard)
-    rows.extend(item_item_indices[0] + num_users)  # Shift item indices by num_users
-    cols.extend(item_item_indices[1] + num_users)
-    data.extend(item_item_jaccard[item_item_indices])
-
-    # Create sparse COO matrix
-    combined_adjacency_coo = coo_matrix((data, (rows, cols)), shape=(total_size, total_size))
-
-    return combined_adjacency_coo

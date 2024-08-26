@@ -1,6 +1,6 @@
 '''
-Created on Oct 12, 2023
-Pytorch Implementation of tempLGCN: Time-Aware Collaborative Filtering with Graph Convolutional Networks
+Created on Sep 1, 2024
+Pytorch Implementation of hyperGCN: Hyper Graph Convolutional Networks for Collaborative Filtering
 '''
 
 import argparse
@@ -36,9 +36,6 @@ def parse_args():
     parser.add_argument('--edge', type=str, default='bi')
     parser.add_argument('--u_sim_top_k', type=int, default=20)
     parser.add_argument('--i_sim_top_k', type=int, default=20)
-    
-    
-    # DECAY = 0.0001
-    # LR = 0.005 
+    parser.add_argument('--self_sim', type=bool, default=False)
     
     return parser.parse_args()
