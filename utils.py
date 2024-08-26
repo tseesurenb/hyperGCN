@@ -5,6 +5,9 @@ Pytorch Implementation of hyperGCN: Hyper Graph Convolutional Networks for Colla
 
 import torch
 import random
+import matplotlib
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 from tqdm import tqdm
@@ -241,7 +244,7 @@ def plot_loss(num_exp, epochs, light_loss, light_bpr, light_reg, light_recall, l
     plt.tight_layout()  # Adjust spacing between subplots
     plt.show()
 
-def plot_loss3(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, all_knn_metrics):
+def plot_loss3(plot_name, num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, all_knn_metrics):
     plt.figure(figsize=(14, 5))  # Adjust figure size as needed
     
     for i in range(num_exp):
@@ -297,6 +300,7 @@ def plot_loss3(num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, a
     
     plt.tight_layout()  # Adjust spacing between subplots
     plt.show()
+    plt.savefig('res/' + plot_name + '.png')  # Save plot to file
     
 def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 

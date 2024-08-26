@@ -55,7 +55,8 @@ config['edge'] = 'bi'
 all_bi_metrics = []
 all_bi_losses = []
 
-file_path = f"models/LightGCN_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl"
+file_name = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}"
+file_path = file_name + ".pkl"
 
 #file_path = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl"
 
@@ -156,4 +157,4 @@ print(f"    Prec: {precs[0]:.4f}, {precs[1]:.4f}, {precs[2]:.4f}, {precs[3]:.4f}
 print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {round(np.mean(f1s), 4):.4f}, {round(np.std(f1s), 4):.4f}")
 print(f"    NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {round(np.mean(ncdg), 4):.4f}, {round(np.std(ncdg), 4):.4f}")
 
-plot_loss3(len(seeds), config['epochs'], all_bi_losses, all_bi_metrics, all_knn_losses, all_knn_metrics)
+plot_loss3(file_name, len(seeds), config['epochs'], all_bi_losses, all_bi_metrics, all_knn_losses, all_knn_metrics)
