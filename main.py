@@ -116,14 +116,14 @@ else:
     # Save to a file
     with open(file_path, 'wb') as f:
         pickle.dump(all_results, f)
-
-print(f'\n-------------------------------------------- Experimental Results --------------------------------------------')    
-print(f"Dataset: {config['dataset']}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}")
-print(f"MODEL: {br}{config['model']}{rs} | EDGE TYPE: {br}{config['edge']}{rs} | EMB_DIM: {br}{config['emb_dim']}{rs} | #LAYERS: {br}{config['layers']}{rs} | SIM: {br}u-{config['u_sim']}(topK {config['u_sim_top_k']}), i-{config['i_sim']}(topK {config['i_sim_top_k']}){rs} | Self-sim: {br}{config['self_sim']}{rs} | BATCH_SIZE: {br}{config['batch_size']}{rs} | DECAY: {br}{config['decay']}{rs} | EPOCHS: {br}{config['epochs']}{rs}")
+ 
+print(f" Dataset: {config['dataset']}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}")
+print(f"   MODEL: {br}{config['model']}{rs} | EDGE TYPE: {br}{config['edge']}{rs} | EMB_DIM: {br}{config['emb_dim']}{rs} | #LAYERS: {br}{config['layers']}{rs} | SIM: {br}u-{config['u_sim']}(topK {config['u_sim_top_k']}), i-{config['i_sim']}(topK {config['i_sim_top_k']}){rs} | Self-sim: {br}{config['self_sim']}{rs} | BATCH_SIZE: {br}{config['batch_size']}{rs} | DECAY: {br}{config['decay']}{rs} | EPOCHS: {br}{config['epochs']}{rs}")
 print(f"  Recall: {recalls[0]:.4f}, {recalls[1]:.4f}, {recalls[2]:.4f}, {recalls[3]:.4f}, {recalls[4]:.4f} | {round(np.mean(recalls), 4):.4f}, {round(np.std(recalls), 4):.4f}")
 print(f"    Prec: {precs[0]:.4f}, {precs[1]:.4f}, {precs[2]:.4f}, {precs[3]:.4f}, {precs[4]:.4f} | {round(np.mean(precs), 4):.4f}, {round(np.std(precs), 4):.4f}")
-print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {round(np.mean(f1s), 4):.4f}, {round(np.std(f1s), 4):.4f}")
-print(f"    NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {round(np.mean(ncdg), 4):.4f}, {round(np.std(ncdg), 4):.4f}")
+print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {bb}{round(np.mean(f1s), 4):.4f}{rs}, {round(np.std(f1s), 4):.4f}")
+print(f"    NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {bb}{round(np.mean(ncdg), 4):.4f}{rs}, {round(np.std(ncdg), 4):.4f}")
+print(f'\n----------------------------------------------------------------------------------------\n')    
 
 config['edge'] = edge_value
 
@@ -155,13 +155,12 @@ for seed in seeds:
     all_knn_metrics.append(metrics)
     
     exp_n += 1
-
-print(f'\n-------------------------------------------- Experimental Results --------------------------------------------')    
+   
 print(f"Dataset: {config['dataset']}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}")
 print(f"MODEL: {br}{config['model']}{rs} | EDGE TYPE: {br}{config['edge']}{rs} | EMB_DIM: {br}{config['emb_dim']}{rs} | #LAYERS: {br}{config['layers']}{rs} | SIM: {br}u-{config['u_sim']}(topK {config['u_sim_top_k']}), i-{config['i_sim']}(topK {config['i_sim_top_k']}){rs} | Self-sim: {br}{config['self_sim']}{rs} | BATCH_SIZE: {br}{config['batch_size']}{rs} | DECAY: {br}{config['decay']}{rs} | EPOCHS: {br}{config['epochs']}{rs}")
 print(f"  Recall: {recalls[0]:.4f}, {recalls[1]:.4f}, {recalls[2]:.4f}, {recalls[3]:.4f}, {recalls[4]:.4f} | {round(np.mean(recalls), 4):.4f}, {round(np.std(recalls), 4):.4f}")
 print(f"    Prec: {precs[0]:.4f}, {precs[1]:.4f}, {precs[2]:.4f}, {precs[3]:.4f}, {precs[4]:.4f} | {round(np.mean(precs), 4):.4f}, {round(np.std(precs), 4):.4f}")
-print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {round(np.mean(f1s), 4):.4f}, {round(np.std(f1s), 4):.4f}")
-print(f"    NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {round(np.mean(ncdg), 4):.4f}, {round(np.std(ncdg), 4):.4f}")
+print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {bb}{round(np.mean(f1s), 4):.4f}{rs}, {round(np.std(f1s), 4):.4f}")
+print(f"    NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {bb}{round(np.mean(ncdg), 4):.4f}{rs}, {round(np.std(ncdg), 4):.4f}")
 
 plot_loss3(file_name, len(seeds), config['epochs'], all_bi_losses, all_bi_metrics, all_knn_losses, all_knn_metrics)
