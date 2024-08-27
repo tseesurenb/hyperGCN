@@ -14,6 +14,13 @@ from world import config
 import pickle
 import os
 
+# ANSI escape codes for bold and red
+br = "\033[1;31m"
+b = "\033[1m"
+bg = "\033[1;32m"
+bb = "\033[1;34m"
+rs = "\033[0m"
+
 # STEP 1: set the device
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f'Device: {device}')
@@ -107,12 +114,12 @@ else:
     }
 
     # Save to a file
-    with open(f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl", 'wb') as f:
+    with open(file_path, 'wb') as f:
         pickle.dump(all_results, f)
 
 print(f'\n-------------------------------------------- Experimental Results --------------------------------------------')    
 print(f"Dataset: {config['dataset']}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}")
-print(f"MODEL: {config['model']} | EDGE TYPE: {config['edge']} | EMB_DIM: {config['emb_dim']} | #LAYERS: {config['layers']} | SIMILARITY: u - {config['u_sim']}(topK {config['u_sim_top_k']}), i - {config['i_sim']}(topK {config['i_sim_top_k']}) | Self-sim {config['self_sim']} | BATCH_SIZE: {config['batch_size']} | DECAY: {config['decay']}")
+print(f"MODEL: {br}{config['model']} | EDGE TYPE: {config['edge']} | EMB_DIM: {config['emb_dim']} | #LAYERS: {config['layers']} | SIM: u-{config['u_sim']}(topK {config['u_sim_top_k']}), i-{config['i_sim']}(topK {config['i_sim_top_k']}) | Self-sim: {config['self_sim']} | BATCH_SIZE: {config['batch_size']} | DECAY: {config['decay']} | EPOCHS: {config['epochs']}")
 print(f"  Recall: {recalls[0]:.4f}, {recalls[1]:.4f}, {recalls[2]:.4f}, {recalls[3]:.4f}, {recalls[4]:.4f} | {round(np.mean(recalls), 4):.4f}, {round(np.std(recalls), 4):.4f}")
 print(f"    Prec: {precs[0]:.4f}, {precs[1]:.4f}, {precs[2]:.4f}, {precs[3]:.4f}, {precs[4]:.4f} | {round(np.mean(precs), 4):.4f}, {round(np.std(precs), 4):.4f}")
 print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4]:.4f} | {round(np.mean(f1s), 4):.4f}, {round(np.std(f1s), 4):.4f}")
