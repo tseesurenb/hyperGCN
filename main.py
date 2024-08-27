@@ -62,7 +62,9 @@ config['edge'] = 'bi'
 all_bi_metrics = []
 all_bi_losses = []
 
-file_name = f"models/LightGCN_{config['edge']}_{config['layers']}_{config['epochs']}"
+old_model = config['model']
+config['model'] = 'LightGCN'
+file_name = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}"
 file_path = file_name + "_experiment_results.pkl"
 
 #file_path = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl"
@@ -117,7 +119,6 @@ else:
     with open(file_path, 'wb') as f:
         pickle.dump(all_results, f)
 
-print('\n') 
 print(f" Dataset: {config['dataset']}, num_users: {num_users}, num_items: {num_items}, num_interactions: {num_interactions}")
 print(f"   MODEL: {br}{config['model']}{rs} | EDGE TYPE: {br}{config['edge']}{rs} | EMB_DIM: {br}{config['emb_dim']}{rs} | #LAYERS: {br}{config['layers']}{rs} | SIM: {br}u-{config['u_sim']}(topK {config['u_sim_top_k']}), i-{config['i_sim']}(topK {config['i_sim_top_k']}){rs} | Self-sim: {br}{config['self_sim']}{rs} | BATCH_SIZE: {br}{config['batch_size']}{rs} | DECAY: {br}{config['decay']}{rs} | EPOCHS: {br}{config['epochs']}{rs}")
 print(f"  Recall: {recalls[0]:.4f}, {recalls[1]:.4f}, {recalls[2]:.4f}, {recalls[3]:.4f}, {recalls[4]:.4f} | {round(np.mean(recalls), 4):.4f}, {round(np.std(recalls), 4):.4f}")
@@ -126,8 +127,10 @@ print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4
 print(f"    NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {bb}{round(np.mean(ncdg), 4):.4f}{rs}, {round(np.std(ncdg), 4):.4f}")
 print(f'\n----------------------------------------------------------------------------------------\n')    
 
-file_name = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}"
+config['model'] = old_model
 config['edge'] = edge_value
+
+file_name = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}"
 
 all_knn_metrics = []
 all_knn_losses = []
