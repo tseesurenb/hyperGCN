@@ -33,14 +33,11 @@ class LightGCNAttn(MessagePassing):
 
     def message(self, x_j, norm, attr):
         #return norm.view(-1, 1) * x_j   
-        return norm.view(-1, 1) * (x_j * attr.view(-1, 1))
-        #return norm.view(-1, 1) * (x_j * torch.sigmoid(attr).view(-1, 1))
-        #return norm.view(-1, 1) * (x_j / torch.pow(attr, 20).view(-1, 1))
+        #return norm.view(-1, 1) * (x_j * attr.view(-1, 1))
+        return norm.view(-1, 1) * (x_j * torch.sigmoid(attr).view(-1, 1))
         #return norm.view(-1, 1) * (x_j * torch.exp(attr).view(-1, 1))
-        #return norm.view(-1, 1) * (x_j / torch.exp(attr).view(-1, 1))
-         
-        #return norm.view(-1, 1) * (x_j / torch.sqrt(attr).view(-1, 1))
-        #return norm.view(-1, 1) * (x_j / torch.log(attr).view(-1, 1))
+        #return norm.view(-1, 1) * (x_j * torch.pow(attr, 20).view(-1, 1))
+        #return norm.view(-1, 1) * (x_j * torch.log(attr).view(-1, 1))
 
 
     #def aggregate(self, x, messages, index):
