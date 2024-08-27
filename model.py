@@ -34,8 +34,9 @@ class LightGCNAttn(MessagePassing):
     def message(self, x_j, norm, attr):
         #return norm.view(-1, 1) * x_j   
         #return norm.view(-1, 1) * (x_j * attr.view(-1, 1))
-        return norm.view(-1, 1) * (x_j * torch.sigmoid(attr).view(-1, 1))
-        #return norm.view(-1, 1) * (x_j * torch.exp(attr).view(-1, 1))
+        #return norm.view(-1, 1) * (x_j * torch.sigmoid(attr).view(-1, 1))
+        #return norm.view(-1, 1) * (x_j * torch.sigmoid(attr).view(-1, 1))
+        return norm.view(-1, 1) * (x_j * torch.exp(attr).view(-1, 1))
         #return norm.view(-1, 1) * (x_j * torch.pow(attr, 20).view(-1, 1))
         #return norm.view(-1, 1) * (x_j * torch.log(attr).view(-1, 1))
 
@@ -43,6 +44,43 @@ class LightGCNAttn(MessagePassing):
     #def aggregate(self, x, messages, index):
     #    return torch_scatter.scatter(messages, index, self.node_dim, reduce="sum")
     
+
+class LightGCNAttn2(MessagePassing):
+    def __init__(self, in_channels, out_channels, **kwargs):  
+        super().__init__(aggr='add')
+        self.att = torch.nn.Parameter(torch.Tensor(1, in_channels))
+        self.linear = torch.nn.Linear(in_channels, out_channels)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        torch.nn.init.xavier_uniform_(self.att)
+        torch.nn.init.xavier_uniform_(self.linear.weight)
+        if self.linear.bias is not None:
+            self.linear.bias.data.fill_(0)
+
+    def forward(self, x, edge_index, edge_attrs):
+        # Compute normalization
+        from_, to_ = edge_index
+        deg = degree(to_, x.size(0), dtype=x.dtype)
+        deg_inv_sqrt = deg.pow(-0.5)
+        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
+        norm = deg_inv_sqrt[from_] * deg_inv_sqrt[to_]
+
+        # Start propagating messages with attention
+        return self.propagate(edge_index, x=x, norm=norm, edge_attrs=edge_attrs)
+
+    def message(self, x_i, x_j, edge_attrs, norm):
+        # Compute attention coefficients
+        edge_attr = edge_attrs.unsqueeze(-1) if edge_attrs.dim() == 1 else edge_attrs
+        alpha = F.leaky_relu((x_i * self.att).sum(dim=-1)) + F.leaky_relu((x_j * self.att).sum(dim=-1))
+        alpha = F.softmax(alpha, dim=0)
+        
+        return alpha.view(-1, 1) * norm.view(-1, 1) * x_j
+
+    def update(self, aggr_out):
+        # Apply linear transformation
+        return self.linear(aggr_out)
+
 class LightGCNConv(MessagePassing):
     def __init__(self, **kwargs):  
         super().__init__(aggr='add')
@@ -54,10 +92,7 @@ class LightGCNConv(MessagePassing):
         deg_inv_sqrt = deg.pow(-0.5)
         deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
         norm = deg_inv_sqrt[from_] * deg_inv_sqrt[to_]
-        
-        #norm_tuple = gcn_norm(edge_index=edge_index, add_self_loops=False)
-        #norm = norm_tuple[0]
-        
+
         # Start propagating messages (no update after aggregation)
         return self.propagate(edge_index, x=x, norm=norm)
 

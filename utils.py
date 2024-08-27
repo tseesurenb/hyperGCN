@@ -8,6 +8,8 @@ import random
 import matplotlib
 matplotlib.use('Agg')
 
+from datetime import datetime
+
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 from tqdm import tqdm
@@ -300,7 +302,14 @@ def plot_loss3(plot_name, num_exp, epochs, all_bi_losses, all_bi_metrics, all_kn
     
     plt.tight_layout()  # Adjust spacing between subplots
     #plt.show()
-    plt.savefig(plot_name + '.png')  # Save plot to file
+    
+    # Get current date and time
+    now = datetime.now()
+
+    # Format date and time as desired (e.g., "2024-08-27_14-30-00")
+    timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
+
+    plt.savefig(plot_name + '_' + timestamp +'.png')  # Save plot to file
     
 def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
