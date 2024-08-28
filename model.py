@@ -184,13 +184,14 @@ class NGCFConv2(MessagePassing):
 
 class GraphSage(MessagePassing):
     
-    def __init__(self, in_channels, out_channels, args, **kwargs):  
+    def __init__(self, latent_dim, dropout, bias=True, **kwargs):  #  __init__(self, in_channels, out_channels, args, **kwargs):
+      
         super(GraphSage, self).__init__(**kwargs)
 
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.normalize = args.normalize
-        bias = args.bias
+        self.in_channels = latent_dim
+        self.out_channels = latent_dim
+        self.normalize = True
+        bias = bias
         self.lin_src = None
         self.lin_dst = None
 
@@ -201,8 +202,8 @@ class GraphSage(MessagePassing):
         # self.lin_dst is the linear transformation that  you apply to embedding 
         #            for central node.
         # Our implementation is ~2 lines, but don't worry if you deviate from this.
-        self.lin_src = nn.Linear(in_channels, out_channels, bias=bias)
-        self.lin_dst = nn.Linear(in_channels, out_channels, bias=bias)
+        self.lin_src = nn.Linear(latent_dim, latent_dim, bias=bias)
+        self.lin_dst = nn.Linear(latent_dim, latent_dim, bias=bias)
         ############################################################################
 
         self.reset_parameters()
