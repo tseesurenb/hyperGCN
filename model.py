@@ -283,10 +283,10 @@ class GAT(MessagePassing):
 
         self.in_channels = latent_dim
         self.out_channels = latent_dim
-        self.heads = 2
-        self.negative_slope = True
-        self.dropout = 0.1
-        bias = True
+        self.heads = 1
+        self.negative_slope = False
+        self.dropout = 0
+        bias = False
         self.debug_g = True
 
         self.lin_src = None
@@ -324,7 +324,7 @@ class GAT(MessagePassing):
         nn.init.xavier_uniform_(self.att_src)
         nn.init.xavier_uniform_(self.att_dst)
 
-    def forward(self, x, edge_index, edge_attr, size = None):
+    def forward(self, x, edge_index, edge_attrs, size = None):
         
         H, C = self.heads, self.out_channels
 
@@ -343,13 +343,13 @@ class GAT(MessagePassing):
         x_j = self.lin_src(x).view(-1, H, C)
         alpha_dst = torch.stack([(each_x_i * self.att_dst).sum(dim=1) for each_x_i in x_i])
         alpha_src = torch.stack([(each_x_j * self.att_src).sum(dim=1) for each_x_j in x_j])
-        out = self.propagate(edge_index, x=(x_i, x_j), alpha=(alpha_src, alpha_dst), size=size).view(-1, H * C)
+        out = self.propagate(edge_index, x=(x_i, x_j), alpha=(alpha_src, alpha_dst), size=size, attrs = edge_attrs).view(-1, H * C)
         ############################################################################
 
         return out
 
 
-    def message(self, x_j, alpha_j, alpha_i, index, ptr, size_i):
+    def message(self, x_j, alpha_j, alpha_i, index, ptr, size_i, attrs):
 
         ############# Your code here #############
         # Implement your message function. Putting the attention in message 
@@ -367,7 +367,9 @@ class GAT(MessagePassing):
         alpha_ij = F.leaky_relu(alpha_i + alpha_j, negative_slope=self.negative_slope)
         alpha_ij = softmax(alpha_ij, index, num_nodes=size_i)    
         alpha_ij = F.dropout(alpha_ij, p=self.dropout, training=self.training)
-        out = x_j * alpha_ij.view(-1, self.heads, 1)           
+        out = x_j * alpha_ij.view(-1, self.heads, 1)
+        attrs = attrs.to(torch.float32)
+        out = out if attrs is None else out * attrs.view(-1, 1, 1)           
         if ptr is not None:
             out = softmax(out, ptr = ptr)
         ############################################################################
