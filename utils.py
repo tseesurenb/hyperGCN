@@ -406,6 +406,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
       num_items=N_ITEMS,
       model=MODEL,
       is_temp=IS_TEMP,
+      weight_mode = config['weight_mode']
     )
     lightgcn.to(device)
 

@@ -15,8 +15,10 @@ from torch_geometric.nn.conv.gcn_conv import gcn_norm
 
         
 class LightGCNAttn(MessagePassing):
-    def __init__(self, **kwargs):  
+    def __init__(self, weight_mode = 'exp', **kwargs):  
         super().__init__(aggr='add')
+        
+        self.weight_mode = weight_mode
             
     def forward(self, x, edge_index, edge_attrs):
         # Compute normalization
@@ -32,9 +34,12 @@ class LightGCNAttn(MessagePassing):
         return self.propagate(edge_index, x=x, norm=norm, attr = edge_attrs)
 
     def message(self, x_j, norm, attr):
-        #return norm.view(-1, 1) * x_j   
-        return norm.view(-1, 1) * (x_j * attr.view(-1, 1))
-        #return norm.view(-1, 1) * (x_j * torch.exp(attr).view(-1, 1)) 
+        if self.weight_mode == 'exp':
+            return norm.view(-1, 1) * (x_j * torch.exp(attr).view(-1, 1))
+        elif self.weight_mode == 'raw':
+            return norm.view(-1, 1) * (x_j * attr.view(-1, 1))
+        elif self.weight_mode == None:
+            return norm.view(-1, 1) * x_j   
         
 
     #def aggregate(self, x, messages, index):
@@ -183,7 +188,8 @@ class RecSysGNN(nn.Module):
       num_items,
       model, # 'NGCF' or 'LightGCN' or 'LightAttGCN'
       dropout=0.1, # Only used in NGCF
-      is_temp=False
+      is_temp=False,
+      weight_mode = None
   ):
     super(RecSysGNN, self).__init__()
 
@@ -204,7 +210,7 @@ class RecSysGNN(nn.Module):
         LightGCNConv() for _ in range(num_layers)
       )
     elif self.model == 'LightGCNAttn':
-      self.convs = nn.ModuleList(LightGCNAttn() for _ in range(num_layers))
+      self.convs = nn.ModuleList(LightGCNAttn(weight_mode=weight_mode) for _ in range(num_layers))
     else:
       raise ValueError('Model must be NGCF, LightGCN or LightAttGCN')
 

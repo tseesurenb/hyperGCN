@@ -37,5 +37,6 @@ def parse_args():
     parser.add_argument('--u_sim_top_k', type=int, default=20)
     parser.add_argument('--i_sim_top_k', type=int, default=20)
     parser.add_argument('--self_sim', type=bool, default=False)
+    parser.add_argument('--weight_mode', type=str, default='exp')
     
     return parser.parse_args()
