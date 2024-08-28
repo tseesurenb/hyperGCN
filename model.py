@@ -306,7 +306,7 @@ class RecSysGNN(nn.Module):
       )
     elif self.model == 'GraphSage':
       self.convs = nn.ModuleList(
-        GraphSage() for _ in range(num_layers)
+        GraphSage(latent_dim, dropout=dropout) for _ in range(num_layers)
       )
     elif self.model == 'LightGCNAttn':
       self.convs = nn.ModuleList(LightGCNAttn(weight_mode=weight_mode) for _ in range(num_layers))
