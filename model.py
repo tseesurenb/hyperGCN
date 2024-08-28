@@ -4,6 +4,7 @@ Pytorch Implementation of hyperGCN: Hyper Graph Convolutional Networks for Colla
 '''
 
 import torch
+import torch_scatter
 from torch import nn, Tensor
 from torch.nn import Linear, Parameter
 from torch_geometric.nn import MessagePassing
@@ -180,6 +181,97 @@ class NGCFConv2(MessagePassing):
   def message(self, x_j, x_i, norm, attr):
     return norm.view(-1, 1) * (self.lin_1(x_j) + self.lin_2(x_j * x_i)) * attr.view(-1, 1)
 
+
+class GraphSage(MessagePassing):
+    
+    def __init__(self, in_channels, out_channels, args, **kwargs):  
+        super(GraphSage, self).__init__(**kwargs)
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.normalize = args.normalize
+        bias = args.bias
+        self.lin_src = None
+        self.lin_dst = None
+
+        ############# Your code here #############
+        # Define the layers needed for the message and update functions below.
+        # self.lin_src is the linear transformation that you apply to aggregated 
+        #            message from neighbors.
+        # self.lin_dst is the linear transformation that  you apply to embedding 
+        #            for central node.
+        # Our implementation is ~2 lines, but don't worry if you deviate from this.
+        self.lin_src = nn.Linear(in_channels, out_channels, bias=bias)
+        self.lin_dst = nn.Linear(in_channels, out_channels, bias=bias)
+        ############################################################################
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.lin_src.reset_parameters()
+        self.lin_dst.reset_parameters()
+
+    def forward(self, x, edge_index, size = None):
+        """"""
+
+        out = None
+
+        ############# Your code here #############
+        # Implement message passing, as well as any post-processing (our update rule).
+        # 1. Call the propagate function to conduct message passing.
+        #    1.1 See the description of propagate above or the following link for more information: 
+        #        https://pytorch-geometric.readthedocs.io/en/latest/notes/create_gnn.html
+        #    1.2 You will only use the representation for neighbor nodes (x_j) in message passing. 
+        #        Thus, you can simply pass the same representation for src / dst as x=(x, x). 
+        #        Although we give this to you, try thinking through what this means following
+        #        the descriptions above.
+        # 2. Update your node embeddings with a skip connection.
+        # 3. If normalize is set, do L-2 normalization (defined in 
+        #    torch.nn.functional)
+        #
+        # Our implementation is ~5 lines, but don't worry if you deviate from this. 
+        out = self.propagate(edge_index, x=(x, x), size=size)
+        out = self.lin_dst(x) + out
+        #out = F.relu(out)
+        if self.normalize:
+            out = F.normalize(out, p=2, dim=-1)
+        ############################################################################ 
+
+        return out
+
+    def message(self, x_j):
+
+        out = None
+
+        ############# Your code here #############
+        # Implement your message function here.
+        # Hint: Look at the formulation of t he mean aggregation function, focusing on 
+        # what message each individual neighboring node passes during aggregation.
+        #
+        # Our implementation is ~1 lines, but don't worry if you deviate from this.
+        out = self.lin_src(x_j) #/ x_j.size(0)
+        ############################################################################ 
+
+        return out
+
+    def aggregate(self, inputs, index, dim_size = None):
+
+        out = None
+
+        # The axis along which to index number of nodes.
+        node_dim = self.node_dim
+
+        ############# Your code here #############
+        # Implement your aggregate function here.
+        # See here as how to use torch_scatter.scatter: 
+        # https://pytorch-scatter.readthedocs.io/en/latest/functions/scatter.html#torch_scatter.scatter
+        #
+        # Our implementation is ~1 lines, but don't worry if you deviate from this.
+        out = torch_scatter.scatter(inputs, index, dim=node_dim, reduce='mean')
+        ############################################################################
+
+        return out
+
   
 class RecSysGNN(nn.Module):
   def __init__(
@@ -195,7 +287,7 @@ class RecSysGNN(nn.Module):
   ):
     super(RecSysGNN, self).__init__()
 
-    assert (model == 'NGCF' or model == 'LightGCN') or model == 'LightGCNAttn', 'Model must be NGCF or LightGCN or LightGCNAttn'
+    assert (model == 'NGCF' or model == 'LightGCN') or model == 'LightGCNAttn' or model == 'GraphSage', 'Model must be NGCF or LightGCN or LightGCNAttn or GraphSage'
     self.model = model
     self.n_users = num_users
     self.n_items = num_items
@@ -210,6 +302,10 @@ class RecSysGNN(nn.Module):
     elif self.model == 'LightGCN':
       self.convs = nn.ModuleList(
         LightGCNConv() for _ in range(num_layers)
+      )
+    elif self.model == 'GraphSage':
+      self.convs = nn.ModuleList(
+        GraphSage() for _ in range(num_layers)
       )
     elif self.model == 'LightGCNAttn':
       self.convs = nn.ModuleList(LightGCNAttn(weight_mode=weight_mode) for _ in range(num_layers))
