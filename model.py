@@ -284,8 +284,8 @@ class GAT(MessagePassing):
         self.in_channels = latent_dim
         self.out_channels = latent_dim
         self.heads = 1
-        self.negative_slope = False
-        self.dropout = 0
+        self.negative_slope = 0.2
+        self.dropout = 0.5
         bias = False
         self.debug_g = True
 
@@ -364,12 +364,12 @@ class GAT(MessagePassing):
         # 5. ptr (LongTensor, optional): If given, computes the softmax based on
         #    sorted inputs in CSR representation. You can simply pass it to softmax.
         # Our implementation is ~5 lines, but don't worry if you deviate from this.
+        #attrs = attrs.to(torch.float32)
         alpha_ij = F.leaky_relu(alpha_i + alpha_j, negative_slope=self.negative_slope)
+        #alpha_ij = F.leaky_relu(alpha_i + alpha_j + attrs.view(-1, 1, 1), negative_slope=self.negative_slope)
         alpha_ij = softmax(alpha_ij, index, num_nodes=size_i)    
         alpha_ij = F.dropout(alpha_ij, p=self.dropout, training=self.training)
-        out = x_j * alpha_ij.view(-1, self.heads, 1)
-        attrs = attrs.to(torch.float32)
-        out = out if attrs is None else out * attrs.view(-1, 1, 1)           
+        out = x_j * alpha_ij.view(-1, self.heads, 1)        
         if ptr is not None:
             out = softmax(out, ptr = ptr)
         ############################################################################

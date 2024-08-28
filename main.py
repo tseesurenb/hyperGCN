@@ -33,8 +33,18 @@ df = df[df['rating']>=3] # How many ratings are a 3 or above?
 num_users = df['user_id'].nunique()
 num_items = df['item_id'].nunique()
 num_interactions = len(df)
+
 seeds = [7, 12, 89, 91, 41]
 #seeds = [7]
+
+old_edge_type = config['edge']
+old_model_type = config['model']
+
+config['edge'] = 'bi'
+config['model'] = 'LightGCN'
+
+all_bi_metrics = []
+all_bi_losses = []
 
 recalls = []
 precs = []
@@ -42,18 +52,8 @@ f1s = []
 ncdg = []
 exp_n = 1
 
-edge_value = config['edge']
-config['edge'] = 'bi'
-
-all_bi_metrics = []
-all_bi_losses = []
-
-old_model = config['model']
-config['model'] = 'LightGCN'
 file_name = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}"
 file_path = file_name + "_experiment_results.pkl"
-
-#file_path = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}_experiment_results.pkl"
 
 # Check if the results file exists
 if os.path.exists(file_path):
@@ -113,8 +113,8 @@ print(f"F1 score: {f1s[0]:.4f}, {f1s[1]:.4f}, {f1s[2]:.4f}, {f1s[3]:.4f}, {f1s[4
 print(f"    NDCG: {ncdg[0]:.4f}, {ncdg[1]:.4f}, {ncdg[2]:.4f}, {ncdg[3]:.4f}, {ncdg[4]:.4f} | {bb}{round(np.mean(ncdg), 4):.4f}{rs}, {round(np.std(ncdg), 4):.4f}")
 print(f'\n----------------------------------------------------------------------------------------\n')    
 
-config['model'] = old_model
-config['edge'] = edge_value
+config['edge'] = old_edge_type
+config['model'] = old_model_type
 
 file_name = f"models/{config['model']}_{config['edge']}_{config['weight_mode']}_{config['layers']}_{config['epochs']}"
 
