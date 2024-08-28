@@ -212,7 +212,7 @@ class GraphSage(MessagePassing):
         self.lin_src.reset_parameters()
         self.lin_dst.reset_parameters()
 
-    def forward(self, x, edge_index, size = None):
+    def forward(self, x, edge_index, edge_attrs, size = None):
         """"""
 
         out = None
