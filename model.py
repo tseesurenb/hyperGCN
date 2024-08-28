@@ -38,7 +38,7 @@ class LightGCNAttn(MessagePassing):
             return norm.view(-1, 1) * (x_j * torch.exp(attr).view(-1, 1))
         elif self.weight_mode == 'raw':
             return norm.view(-1, 1) * (x_j * attr.view(-1, 1))
-        elif self.weight_mode == None:
+        elif self.weight_mode == 'none':
             return norm.view(-1, 1) * x_j   
         
 
