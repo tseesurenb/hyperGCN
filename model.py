@@ -14,6 +14,8 @@ import torch.nn.functional as F
 from torch_geometric.utils import degree, softmax as geo_softmax
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
 
+from torch_geometric.utils import remove_self_loops, add_self_loops, softmax
+
         
 class LightGCNAttn(MessagePassing):
     def __init__(self, weight_mode = 'exp', **kwargs):  
@@ -38,9 +40,9 @@ class LightGCNAttn(MessagePassing):
         if self.weight_mode == 'exp':
             return norm.view(-1, 1) * (x_j * torch.exp(attr).view(-1, 1))
         elif self.weight_mode == 'raw':
-            #return norm.view(-1, 1) * (x_j * attr.view(-1, 1))
-            k = 3  # You can increase k for a stronger effect
-            return norm.view(-1, 1) * (x_j * torch.exp(attr).pow(k).view(-1, 1))  
+            return norm.view(-1, 1) * (x_j * attr.view(-1, 1))
+            #k = 3  # You can increase k for a stronger effect
+            #return norm.view(-1, 1) * (x_j * torch.exp(attr).pow(k).view(-1, 1))  
         elif self.weight_mode == 'none':
             return norm.view(-1, 1) * x_j   
         
@@ -273,6 +275,114 @@ class GraphSage(MessagePassing):
 
         return out
 
+
+class GAT(MessagePassing):
+
+    def __init__(self, latent_dim, dropout, bias=True, **kwargs):
+        super(GAT, self).__init__(node_dim=0, **kwargs)
+
+        self.in_channels = latent_dim
+        self.out_channels = latent_dim
+        self.heads = 2
+        self.negative_slope = True
+        self.dropout = 0.1
+        bias = True
+        self.debug_g = True
+
+        self.lin_src = None
+        self.lin_dst = None
+        self.att_src = None
+        self.att_dst = None
+
+        ############# Your code here #############
+        # Define the layers needed for the message functions below.
+        # self.lin_src is the linear transformation that you apply to embeddings 
+        # BEFORE message passing.
+        # 
+        # Pay attention to dimensions of the linear layers, especially when
+        # implementing multi-head attention.
+        # Our implementation is ~1 lines, but don't worry if you deviate from this.
+        self.lin_src = nn.Linear(latent_dim, latent_dim * self.heads, bias=bias)
+        ############################################################################
+
+        self.lin_dst = self.lin_src
+
+        ############# Your code here #############
+        # Define the attention parameters \overrightarrow{a_{src}/{dst}}^T in the above intro.
+        # 1. Be mindful of when you want to include multi-head attention.
+        # 2. Note that for each attention head we parametrize the attention parameters 
+        #    as weight vectors NOT matrices - i.e. their first dimension should be 1.
+        self.att_src = nn.Parameter(torch.Tensor(self.heads, latent_dim))
+        self.att_dst = nn.Parameter(torch.Tensor(self.heads,  latent_dim))
+        ############################################################################
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.lin_src.weight)
+        nn.init.xavier_uniform_(self.lin_dst.weight)
+        nn.init.xavier_uniform_(self.att_src)
+        nn.init.xavier_uniform_(self.att_dst)
+
+    def forward(self, x, edge_index, edge_attr, size = None):
+        
+        H, C = self.heads, self.out_channels
+
+        ############# Your code here #############
+        # Implement message passing, as well as any pre- and post-processing (our update rule).
+        # 1. First apply linear transformation to node embeddings, and split that 
+        #    into multiple heads. We use the same representations for source and
+        #    target nodes, but apply different linear weights (W_{src} and W_{dst})
+        # 2. Calculate alpha vectors for central nodes (alpha_{dst}) and neighbor nodes (alpha_{src}).
+        # 3. Call propagate function to conduct the message passing. 
+        #    3.1 Remember to pass alpha = (alpha_{src}, alpha_{dst}) as a parameter.
+        #    3.2 See here for more information: https://pytorch-geometric.readthedocs.io/en/latest/notes/create_gnn.html
+        # 4. Transform the output back to the shape of N * d.
+        # Our implementation is ~5 lines, but don't worry if you deviate from this.
+        x_i = self.lin_dst(x).view(-1, H, C)
+        x_j = self.lin_src(x).view(-1, H, C)
+        alpha_dst = torch.stack([(each_x_i * self.att_dst).sum(dim=1) for each_x_i in x_i])
+        alpha_src = torch.stack([(each_x_j * self.att_src).sum(dim=1) for each_x_j in x_j])
+        out = self.propagate(edge_index, x=(x_i, x_j), alpha=(alpha_src, alpha_dst), size=size).view(-1, H * C)
+        ############################################################################
+
+        return out
+
+
+    def message(self, x_j, alpha_j, alpha_i, index, ptr, size_i):
+
+        ############# Your code here #############
+        # Implement your message function. Putting the attention in message 
+        # instead of in update is a little tricky.
+        # 1. Calculate the attention weights using alpha_i and alpha_j,
+        #    and apply leaky ReLU.
+        # 2. Calculate softmax over the neighbor nodes for all the nodes. Use 
+        #    torch_geometric.utils.softmax instead of the one in Pytorch.
+        # 3. Apply dropout to attention weights (alpha).
+        # 4. Multiply embeddings and attention weights. As a sanity check, the output
+        #    should be of shape (E, H, d).
+        # 5. ptr (LongTensor, optional): If given, computes the softmax based on
+        #    sorted inputs in CSR representation. You can simply pass it to softmax.
+        # Our implementation is ~5 lines, but don't worry if you deviate from this.
+        alpha_ij = F.leaky_relu(alpha_i + alpha_j, negative_slope=self.negative_slope)
+        alpha_ij = softmax(alpha_ij, index, num_nodes=size_i)    
+        alpha_ij = F.dropout(alpha_ij, p=self.dropout, training=self.training)
+        out = x_j * alpha_ij.view(-1, self.heads, 1)           
+        if ptr is not None:
+            out = softmax(out, ptr = ptr)
+        ############################################################################
+        return out
+    def aggregate(self, inputs, index, dim_size = None):
+
+        ############# Your code here #############
+        # Implement your aggregate function here.
+        # See here as how to use torch_scatter.scatter: https://pytorch-scatter.readthedocs.io/en/latest/_modules/torch_scatter/scatter.html
+        # Pay attention to "reduce" parameter is different from that in GraphSage.
+        # Our implementation is ~1 lines, but don't worry if you deviate from this.
+        out = torch_scatter.scatter(inputs, index, dim=0, reduce='sum')
+        ############################################################################
+    
+        return out
   
 class RecSysGNN(nn.Module):
   def __init__(
@@ -288,7 +398,7 @@ class RecSysGNN(nn.Module):
   ):
     super(RecSysGNN, self).__init__()
 
-    assert (model == 'NGCF' or model == 'LightGCN') or model == 'LightGCNAttn' or model == 'GraphSage', 'Model must be NGCF or LightGCN or LightGCNAttn or GraphSage'
+    assert (model == 'NGCF' or model == 'LightGCN') or model == 'LightGCNAttn' or model == 'GraphSage' or model == 'GAT', 'Model must be NGCF or LightGCN or LightGCNAttn or GraphSage or GAT'
     self.model = model
     self.n_users = num_users
     self.n_items = num_items
@@ -307,6 +417,10 @@ class RecSysGNN(nn.Module):
     elif self.model == 'GraphSage':
       self.convs = nn.ModuleList(
         GraphSage(latent_dim, dropout=dropout) for _ in range(num_layers)
+      )
+    elif self.model == 'GAT':
+      self.convs = nn.ModuleList(
+        GAT(latent_dim, dropout=dropout) for _ in range(num_layers)
       )
     elif self.model == 'LightGCNAttn':
       self.convs = nn.ModuleList(LightGCNAttn(weight_mode=weight_mode) for _ in range(num_layers))
