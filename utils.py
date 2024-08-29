@@ -379,6 +379,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
         train_edge_index = knn_train_edge_index
     elif config['edge'] == 'bi':
         train_edge_index = bi_train_edge_index # default to LightGCN
+        print(f"Using bi edges and {len(bi_train_edge_index[0])} edges")
     
     train_edge_index = train_edge_index.clone().detach().to(device)
     train_edge_attrs = torch.tensor(train_edge_attrs).to(device)
