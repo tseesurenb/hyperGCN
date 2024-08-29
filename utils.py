@@ -432,7 +432,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
                                      exp_n, 
                                      g_seed)
 
-    if verbose >= 1:
-        plot_loss(EPOCHS, losses['loss'],  losses['bpr_loss'],  losses['reg_loss'], metrics['recall'], metrics['precision'], metrics['ncdg'])
+    #if verbose >= 1:
+    #    plot_loss(EPOCHS, losses['loss'],  losses['bpr_loss'],  losses['reg_loss'], metrics['recall'], metrics['precision'], metrics['ncdg'])
         
     return losses, metrics
