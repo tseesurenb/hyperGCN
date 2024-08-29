@@ -10,7 +10,7 @@ from scipy.stats import pearsonr
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn import preprocessing
 
-import dask.dataframe as dd
+#import dask.dataframe as dd
 
 # ANSI escape codes for bold and red
 br = "\033[1;31m"
