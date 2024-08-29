@@ -26,8 +26,11 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f'Device: {device}')
 
 # STEP 2: Load the data and filter only ratings >= 3
-columns_name=['user_id','item_id','rating','timestamp']
-df = pd.read_csv("data/raw/ml-100k/u.data",sep="\t",names=columns_name)
+#columns_name=['user_id','item_id','rating','timestamp']
+#df = pd.read_csv("data/raw/ml-100k/u.data",sep="\t",names=columns_name)
+#df = df[df['rating']>=3] # How many ratings are a 3 or above?
+
+df, u_df, i_df, stats = dp.load_data(dataset = config['dataset'], min_interaction_threshold = 400, verbose=config['verbose'])
 df = df[df['rating']>=3] # How many ratings are a 3 or above?
         
 num_users = df['user_id'].nunique()
@@ -52,7 +55,7 @@ f1s = []
 ncdg = []
 exp_n = 1
 
-file_name = f"models/{config['model']}_{config['edge']}_{config['layers']}_{config['epochs']}"
+file_name = f"models/{config['model']}_{config['dataset']}_{config['edge']}_{config['layers']}_{config['epochs']}"
 file_path = file_name + "_experiment_results.pkl"
 
 # Check if the results file exists
@@ -116,7 +119,7 @@ print(f'\n----------------------------------------------------------------------
 config['edge'] = old_edge_type
 config['model'] = old_model_type
 
-file_name = f"models/{config['model']}_{config['edge']}_{config['weight_mode']}_{config['layers']}_{config['epochs']}"
+file_name = f"models/{config['model']}_{config['dataset']}_{config['edge']}_{config['weight_mode']}_{config['layers']}_{config['epochs']}"
 
 all_knn_metrics = []
 all_knn_losses = []
