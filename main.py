@@ -82,7 +82,7 @@ else:
         
         #edges = dp.get_edges(df)
 
-        losses, metrics = run_experiment(df = df, g_seed = seed, exp_n = exp_n, device=device, verbose=-1)
+        losses, metrics = run_experiment(df = df, g_seed = seed, exp_n = exp_n, device=device, verbose=config['verbose'])
         
         max_idx = np.argmax(metrics['f1'])
         recalls.append(metrics['recall'][max_idx])
