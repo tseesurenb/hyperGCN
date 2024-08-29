@@ -10,6 +10,8 @@ from scipy.stats import pearsonr
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn import preprocessing
 
+from tqdm import tqdm
+
 #import dask.dataframe as dd
 
 # ANSI escape codes for bold and red
@@ -120,6 +122,41 @@ def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False):
     
     return filtered_similarity_matrix
 
+from scipy.sparse import csr_matrix
+
+def cosine_similarity_by_top_k_new(matrix, top_k=20, self_sim=False):
+    print('Computing cosine similarity by top-k...')
+    # Convert to sparse matrix
+    binary_matrix = csr_matrix((matrix > 0).astype(int))
+    
+    # Initialize an empty list to store top_k similarities
+    data, rows, cols = [], [], []
+    
+    # Iterate through each row to compute top_k similarities
+    for i in tqdm(range(binary_matrix.shape[0])):
+        # Compute the cosine similarity for the i-th row
+        similarity_vector = cosine_similarity(binary_matrix[i], binary_matrix).flatten()
+        
+        if not self_sim:
+            similarity_vector[i] = 0  # Set self-similarity to zero
+        else:
+            similarity_vector[i] = 1  # Set self-similarity to one
+        
+        # Get the indices of the top_k similarities
+        top_k_indices = np.argsort(-similarity_vector)[:top_k]
+        
+        # Store the top_k values
+        data.extend(similarity_vector[top_k_indices])
+        rows.extend([i] * top_k)
+        cols.extend(top_k_indices)
+    
+    # Construct the sparse similarity matrix using the top_k values
+    filtered_similarity_matrix = csr_matrix((data, (rows, cols)), shape=(matrix.shape[0], matrix.shape[0]))
+
+    print('Cosine similarity by top-k computed.')
+    
+    return filtered_similarity_matrix
+
 def tanimoto_similarity(matrix, threshold=0.0, self_sim=False):
     # Convert the matrix to binary (implicit feedback)
     binary_matrix = (matrix > 0).astype(int)
@@ -209,10 +246,10 @@ def fusion_similarity_by_top_k(matrix, top_k=20, self_sim=False):
 def create_uuii_adjmat_by_threshold(df, u_sim='consine', i_sim='jaccard', u_sim_thresh=0.3, i_sim_thresh=0.3, self_sim=False):
     # Create user-item matrix
     
-    ddf = dd.from_pandas(df, npartitions=10)
-    user_item_matrix = ddf.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0).compute()
+    #ddf = dd.from_pandas(df, npartitions=10)
+    #user_item_matrix = ddf.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0).compute()
 
-    #user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0)
+    user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0)
     
     #user_user_jaccard = jaccard_similarity(user_item_matrix.values, threshold=j_u_thresh)
     if u_sim == 'cosine':
@@ -300,7 +337,7 @@ def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_
     return combined_adjacency_df
 
 
-def load_data(dataset = "ml-100k", min_interaction_threshold = 20, verbose = 0):
+def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_interaction_threshold = 20, verbose = 0):
     
     user_df = None
     item_df = None
@@ -384,9 +421,13 @@ def load_data(dataset = "ml-100k", min_interaction_threshold = 20, verbose = 0):
         
         # Filter users with at least a minimum number of interactions
         user_interaction_counts = df_selected['userId'].value_counts()
-        filtered_users = user_interaction_counts[user_interaction_counts >= min_interaction_threshold].index
-
-        df_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
+        filtered_users = user_interaction_counts[user_interaction_counts >= u_min_interaction_threshold].index
+        df_user_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
+        
+        # Filter items with at least a minimum number of interactions
+        item_interaction_counts = df_user_filtered['itemId'].value_counts()
+        filtered_items = item_interaction_counts[item_interaction_counts >= i_min_interaction_threshold].index
+        df_filtered = df_user_filtered[df_user_filtered['itemId'].isin(filtered_items)]
         
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
         ratings_df = df_filtered.copy()
@@ -407,12 +448,44 @@ def load_data(dataset = "ml-100k", min_interaction_threshold = 20, verbose = 0):
         # Option 2: Drop rows with NA timestamps
         # df_selected = df_selected.dropna(subset=['timestamp'])
       
-         # Filter users with at least a minimum number of interactions
+        # Filter users with at least a minimum number of interactions
         user_interaction_counts = df_selected['userId'].value_counts()
-        filtered_users = user_interaction_counts[user_interaction_counts >= min_interaction_threshold].index
+        filtered_users = user_interaction_counts[user_interaction_counts >= u_min_interaction_threshold].index
+        df_user_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
+        
+        # Filter items with at least a minimum number of interactions
+        item_interaction_counts = df_user_filtered['itemId'].value_counts()
+        filtered_items = item_interaction_counts[item_interaction_counts >= i_min_interaction_threshold].index
+        df_filtered = df_user_filtered[df_user_filtered['itemId'].isin(filtered_items)]
         
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
-        df_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
+        ratings_df = df_filtered.copy()
+        
+    elif dataset == 'amazon_book':
+        # Paths for ML-1M data files
+        ratings_path = f'data/amazon/books.csv'
+        
+        # Load the entire ratings dataframe into memory
+        df = pd.read_csv(ratings_path, header=0)
+
+        # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
+        df_selected = df[['user_id', 'asin', 'rating', 'timestamp']]
+
+        # Rename the columns
+        df_selected.columns = ['userId', 'itemId', 'rating', 'timestamp']
+                
+        # Option 2: Drop rows with NA timestamps
+        # df_selected = df_selected.dropna(subset=['timestamp'])
+      
+        # Filter users with at least a minimum number of interactions
+        user_interaction_counts = df_selected['userId'].value_counts()
+        filtered_users = user_interaction_counts[user_interaction_counts >= u_min_interaction_threshold].index
+        df_user_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
+        
+        # Filter items with at least a minimum number of interactions
+        item_interaction_counts = df_user_filtered['itemId'].value_counts()
+        filtered_items = item_interaction_counts[item_interaction_counts >= i_min_interaction_threshold].index
+        df_filtered = df_user_filtered[df_user_filtered['itemId'].isin(filtered_items)]
         
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
         ratings_df = df_filtered.copy()
@@ -432,10 +505,13 @@ def load_data(dataset = "ml-100k", min_interaction_threshold = 20, verbose = 0):
 
         # Filter users with at least a minimum number of interactions
         user_interaction_counts = df_selected['userId'].value_counts()
-        filtered_users = user_interaction_counts[user_interaction_counts >= min_interaction_threshold].index
+        filtered_users = user_interaction_counts[user_interaction_counts >= u_min_interaction_threshold].index
+        df_user_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
         
-        # Create a copy of the DataFrame to avoid SettingWithCopyWarning
-        df_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
+        # Filter items with at least a minimum number of interactions
+        item_interaction_counts = df_user_filtered['itemId'].value_counts()
+        filtered_items = item_interaction_counts[item_interaction_counts >= i_min_interaction_threshold].index
+        df_filtered = df_user_filtered[df_user_filtered['itemId'].isin(filtered_items)]
 
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
         ratings_df = df_filtered.copy()
@@ -453,12 +529,18 @@ def load_data(dataset = "ml-100k", min_interaction_threshold = 20, verbose = 0):
         # Convert the timestamp column to Unix timestamps
         df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
         
-        # Filter users with at least a minimum number of interactions
-        user_interaction_counts = df['userId'].value_counts()
-        filtered_users = user_interaction_counts[user_interaction_counts >= min_interaction_threshold].index
+        # Select only the columns we need
+        df_selected = df[['userId', 'itemId', 'rating', 'timestamp']]
         
-        # Create a copy of the DataFrame to avoid SettingWithCopyWarning
-        df_filtered = df[df['userId'].isin(filtered_users)]
+        # Filter users with at least a minimum number of interactions
+        user_interaction_counts = df_selected['userId'].value_counts()
+        filtered_users = user_interaction_counts[user_interaction_counts >= u_min_interaction_threshold].index
+        df_user_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
+        
+        # Filter items with at least a minimum number of interactions
+        item_interaction_counts = df_user_filtered['itemId'].value_counts()
+        filtered_items = item_interaction_counts[item_interaction_counts >= i_min_interaction_threshold].index
+        df_filtered = df_user_filtered[df_user_filtered['itemId'].isin(filtered_items)]
 
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
         ratings_df = df_filtered.copy()
@@ -475,12 +557,18 @@ def load_data(dataset = "ml-100k", min_interaction_threshold = 20, verbose = 0):
         # Convert the timestamp column to Unix timestamps
         df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
         
-        # Filter users with at least a minimum number of interactions
-        user_interaction_counts = df['userId'].value_counts()
-        filtered_users = user_interaction_counts[user_interaction_counts >= min_interaction_threshold].index
+        # Select only the columns we need
+        df_selected = df[['userId', 'itemId', 'rating', 'timestamp']]
         
-        # Create a copy of the DataFrame to avoid SettingWithCopyWarning
-        df_filtered = df[df['userId'].isin(filtered_users)]
+        # Filter users with at least a minimum number of interactions
+        user_interaction_counts = df_selected['userId'].value_counts()
+        filtered_users = user_interaction_counts[user_interaction_counts >= u_min_interaction_threshold].index
+        df_user_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
+        
+        # Filter items with at least a minimum number of interactions
+        item_interaction_counts = df_user_filtered['itemId'].value_counts()
+        filtered_items = item_interaction_counts[item_interaction_counts >= i_min_interaction_threshold].index
+        df_filtered = df_user_filtered[df_user_filtered['itemId'].isin(filtered_items)]
 
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
         ratings_df = df_filtered.copy()
@@ -497,12 +585,18 @@ def load_data(dataset = "ml-100k", min_interaction_threshold = 20, verbose = 0):
         # Convert the timestamp column to Unix timestamps
         df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
         
-        # Filter users with at least a minimum number of interactions
-        user_interaction_counts = df['userId'].value_counts()
-        filtered_users = user_interaction_counts[user_interaction_counts >= min_interaction_threshold].index
+        # Select only the columns we need
+        df_selected = df[['userId', 'itemId', 'rating', 'timestamp']]
         
-        # Create a copy of the DataFrame to avoid SettingWithCopyWarning
-        df_filtered = df[df['userId'].isin(filtered_users)]
+        # Filter users with at least a minimum number of interactions
+        user_interaction_counts = df_selected['userId'].value_counts()
+        filtered_users = user_interaction_counts[user_interaction_counts >= u_min_interaction_threshold].index
+        df_user_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
+        
+        # Filter items with at least a minimum number of interactions
+        item_interaction_counts = df_user_filtered['itemId'].value_counts()
+        filtered_items = item_interaction_counts[item_interaction_counts >= i_min_interaction_threshold].index
+        df_filtered = df_user_filtered[df_user_filtered['itemId'].isin(filtered_items)]
 
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
         ratings_df = df_filtered.copy()
@@ -519,16 +613,51 @@ def load_data(dataset = "ml-100k", min_interaction_threshold = 20, verbose = 0):
         # Convert the timestamp column to Unix timestamps
         df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
         
-        print('Number of users before threshold {min_interaction_threshold}:', len(df['userId'].unique()))
+        # Select only the columns we need
+        df_selected = df[['userId', 'itemId', 'rating', 'timestamp']]
+        
         # Filter users with at least a minimum number of interactions
-        user_interaction_counts = df['userId'].value_counts()
-        filtered_users = user_interaction_counts[user_interaction_counts >= min_interaction_threshold].index
+        user_interaction_counts = df_selected['userId'].value_counts()
+        filtered_users = user_interaction_counts[user_interaction_counts >= u_min_interaction_threshold].index
+        df_user_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
         
-        print('Number of users after threshold {min_interaction_threshold}:', len(filtered_users))
-        
-        # Create a copy of the DataFrame to avoid SettingWithCopyWarning
-        df_filtered = df[df['userId'].isin(filtered_users)]
+        # Filter items with at least a minimum number of interactions
+        item_interaction_counts = df_user_filtered['itemId'].value_counts()
+        filtered_items = item_interaction_counts[item_interaction_counts >= i_min_interaction_threshold].index
+        df_filtered = df_user_filtered[df_user_filtered['itemId'].isin(filtered_items)]
 
+        # Create a copy of the DataFrame to avoid SettingWithCopyWarning
+        ratings_df = df_filtered.copy()
+        
+    elif dataset == 'gowalla':
+        # Paths for ML-1M data files
+        ratings_path = f'data/gowalla/gowalla.csv'
+        
+        # Load the entire ratings dataframe into memory
+        df = pd.read_csv(ratings_path, header=0)
+        
+        # Convert the timestamp column to Unix timestamps
+        df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
+
+        # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
+        df_selected = df[['userId', 'itemId', 'rating', 'timestamp']]
+
+        # Rename the columns
+        df_selected.columns = ['userId', 'itemId', 'rating', 'timestamp']
+                
+        # Option 2: Drop rows with NA timestamps
+        # df_selected = df_selected.dropna(subset=['timestamp'])
+      
+        # Filter users with at least a minimum number of interactions
+        user_interaction_counts = df_selected['userId'].value_counts()
+        filtered_users = user_interaction_counts[user_interaction_counts >= u_min_interaction_threshold].index
+        df_user_filtered = df_selected[df_selected['userId'].isin(filtered_users)]
+        
+        # Filter items with at least a minimum number of interactions
+        item_interaction_counts = df_user_filtered['itemId'].value_counts()
+        filtered_items = item_interaction_counts[item_interaction_counts >= i_min_interaction_threshold].index
+        df_filtered = df_user_filtered[df_user_filtered['itemId'].isin(filtered_items)]
+        
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
         ratings_df = df_filtered.copy()
     

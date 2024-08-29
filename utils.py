@@ -341,7 +341,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     N_ITEMS = train_df['item_id_idx'].nunique()
 
     if verbose >= 0:
-        print("Number of Unique Users : ", N_USERS)
+        print("Number of unique Users : ", N_USERS)
         print("Number of unique Items : ", N_ITEMS)
 
     u_t = torch.LongTensor(train_df.user_id_idx)

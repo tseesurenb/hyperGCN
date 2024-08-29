@@ -30,7 +30,7 @@ print(f'Device: {device}')
 #df = pd.read_csv("data/raw/ml-100k/u.data",sep="\t",names=columns_name)
 #df = df[df['rating']>=3] # How many ratings are a 3 or above?
 
-df, u_df, i_df, stats = dp.load_data(dataset = config['dataset'], min_interaction_threshold = 400, verbose=config['verbose'])
+df, u_df, i_df, stats = dp.load_data(dataset = config['dataset'], u_min_interaction_threshold = 30, i_min_interaction_threshold = 25, verbose=config['verbose'])
 df = df[df['rating']>=3] # How many ratings are a 3 or above?
         
 num_users = df['user_id'].nunique()
