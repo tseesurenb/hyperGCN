@@ -16,7 +16,7 @@ def parse_args():
     parser.add_argument('--epochs', type=int,default=21)
     parser.add_argument('--epochs_per_eval', type=int,default=10)
     parser.add_argument('--epochs_per_lr_decay', type=int,default=5000)
-    parser.add_argument('--verbose', type=bool, default=False)
+    parser.add_argument('--verbose', type=int, default=-1)
     parser.add_argument('--lr', type=float, default=0.005, help="the learning rate")
     parser.add_argument('--decay', type=float, default=1e-04, help="the weight decay for l2 normalizaton")
     parser.add_argument('--path', type=str, default="./checkpoints", help="path to save weights")
