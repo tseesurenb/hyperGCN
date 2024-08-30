@@ -240,7 +240,7 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
         #start_time = time.time()
         
         model.train()
-        for batch_idx in tqdm(range(n_batch)):
+        for batch_idx in range(n_batch):
 
             optimizer.zero_grad()
             # Start the timer
