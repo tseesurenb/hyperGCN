@@ -8,7 +8,7 @@ import torch
 import torch.backends
 import torch.mps
 import numpy as np
-from utils import run_experiment, plot_loss3
+from utils import run_experiment, run_experiment_2, plot_loss3
 import data_prep as dp 
 from world import config
 import pickle
@@ -26,12 +26,11 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f'Device: {device}')
 
 # STEP 2: Load the data and filter only ratings >= 3
-df, u_df, i_df, stats = dp.load_data(dataset = config['dataset'], u_min_interaction_threshold = 10, i_min_interaction_threshold = 10, verbose=config['verbose'])
-df = df[df['rating']>=3] # How many ratings are a 3 or above?
-        
-num_users = df['user_id'].nunique()
-num_items = df['item_id'].nunique()
-num_interactions = len(df)
+train_df, test_df = dp.load_data(dataset = config['dataset'], u_min_interaction_threshold = 10, i_min_interaction_threshold = 10, verbose=config['verbose'])
+
+num_users = train_df['user_id'].nunique()
+num_items = train_df['item_id'].nunique()
+num_interactions = len(train_df)
 
 seeds = [7, 12, 89, 91, 41]
 #seeds = [7]
@@ -78,7 +77,7 @@ else:
         
         #edges = dp.get_edges(df)
 
-        losses, metrics = run_experiment(df = df, g_seed = seed, exp_n = exp_n, device=device, verbose=config['verbose'])
+        losses, metrics = run_experiment_2(train_df = train_df, test_df=test_df, g_seed = seed, exp_n = exp_n, device=device, verbose=config['verbose'])
         
         max_idx = np.argmax(metrics['f1'])
         recalls.append(metrics['recall'][max_idx])
@@ -133,7 +132,7 @@ for seed in seeds:
     
     #edges = dp.get_edges(df)
 
-    losses, metrics = run_experiment(df = df, g_seed = seed, exp_n = exp_n, device=device, verbose=-1)
+    losses, metrics = run_experiment_2(train_df = train_df, test_df=test_df, g_seed = seed, exp_n = exp_n, device=device, verbose=config['verbose'])
     
     max_idx = np.argmax(metrics['f1'])
     #all_metrics.append(metrics)

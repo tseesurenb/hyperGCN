@@ -25,16 +25,16 @@ class LightGCNAttn(MessagePassing):
             
     def forward(self, x, edge_index, edge_attrs):
         # Compute normalization
-        from_, to_ = edge_index
-        deg = degree(to_, x.size(0), dtype=x.dtype)
-        deg_inv_sqrt = deg.pow(-0.5)
-        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-        norm = deg_inv_sqrt[from_] * deg_inv_sqrt[to_]
+        #from_, to_ = edge_index
+        #deg = degree(to_, x.size(0), dtype=x.dtype)
+        #deg_inv_sqrt = deg.pow(-0.5)
+        #deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
+        #norm = deg_inv_sqrt[from_] * deg_inv_sqrt[to_]
         
-        #norm = gcn_norm(edge_index=edge_index, add_self_loops=False)
+        norm = gcn_norm(edge_index=edge_index, add_self_loops=False)
         
         # Start propagating messages (no update after aggregation)
-        return self.propagate(edge_index, x=x, norm=norm, attr = edge_attrs)
+        return self.propagate(edge_index, x=x, norm=norm[1], attr = edge_attrs)
 
     def message(self, x_j, norm, attr):
         if self.weight_mode == 'exp':

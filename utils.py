@@ -21,7 +21,8 @@ from sklearn.model_selection import train_test_split
 from model import RecSysGNN
 from sklearn import preprocessing as pp
 from world import config
-from data_prep import get_edge_index, create_uuii_adjmat_by_top_k, create_uuii_adjmat_by_threshold
+import data_prep as dp
+from data_prep import get_edge_index, create_uuii_adjmat_by_top_k, create_uuii_adjmat_by_threshold, create_uuii_adjmat_by_top_k_2
 
 # ANSI escape codes for bold and red
 br = "\033[1;31m"
@@ -117,7 +118,7 @@ def batch_data_loader(data, batch_size, n_usr, n_itm, device):
             if neg_id not in x:
                 return neg_id
 
-    interected_items_df = data.groupby('user_id_idx')['item_id_idx'].apply(list).reset_index()
+    interacted_items_df = data.groupby('user_id_idx')['item_id_idx'].apply(list).reset_index()
     indices = [x for x in range(n_usr)]
 
     if n_usr < batch_size:
@@ -128,9 +129,9 @@ def batch_data_loader(data, batch_size, n_usr, n_itm, device):
     users.sort()
     users_df = pd.DataFrame(users,columns = ['users'])
 
-    interected_items_df = pd.merge(interected_items_df, users_df, how = 'right', left_on = 'user_id_idx', right_on = 'users')
-    pos_items = interected_items_df['item_id_idx'].apply(lambda x : random.choice(x)).values
-    neg_items = interected_items_df['item_id_idx'].apply(lambda x: sample_neg(x)).values
+    interacted_items_df = pd.merge(interacted_items_df, users_df, how = 'right', left_on = 'user_id_idx', right_on = 'users')
+    pos_items = interacted_items_df['item_id_idx'].apply(lambda x : random.choice(x)).values
+    neg_items = interacted_items_df['item_id_idx'].apply(lambda x: sample_neg(x)).values
 
     return (
         torch.LongTensor(list(users)).to(device), 
@@ -352,8 +353,6 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
         print("max user index: ", u_t.max().item(), "| min user index: ", u_t.min().item())
         print("max item index: ", i_t.max().item(), "| min item index:", i_t.min().item())
     
-    u_t = torch.LongTensor(train_df.user_id_idx)
-    i_t = torch.LongTensor(train_df.item_id_idx) + N_USERS
 
     bi_train_edge_index = torch.stack((
       torch.cat([u_t, i_t]),
@@ -362,6 +361,100 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
          
     #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
     knn_train_adj_df = create_uuii_adjmat_by_top_k(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
+    knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
+    
+    #print(len(knn_train_edge_index[0]))
+    #print(len(train_edge_attrs))
+
+    # Convert train_edge_index to a torch tensor if it's a numpy array
+    if isinstance(knn_train_edge_index, np.ndarray):
+        knn_train_edge_index = torch.tensor(knn_train_edge_index).to(device)
+        knn_train_edge_index = knn_train_edge_index.long()
+    
+    # Concatenate user-to-user, item-to-item (from train_edge_index) and user-to-item, item-to-user (from train_edge_index2)
+    if config['edge'] == 'full':
+        train_edge_index = torch.cat((knn_train_edge_index, bi_train_edge_index), dim=1)
+    elif config['edge'] == 'knn':
+        train_edge_index = knn_train_edge_index
+    elif config['edge'] == 'bi':
+        train_edge_index = bi_train_edge_index # default to LightGCN
+        print(f"Using bi edges and {len(bi_train_edge_index[0])} edges")
+    
+    train_edge_index = train_edge_index.clone().detach().to(device)
+    train_edge_attrs = torch.tensor(train_edge_attrs).to(device)
+    
+    if verbose >= 1:
+        print(f"bi edge len: {len(bi_train_edge_index[0])} | knn edge len: {len(knn_train_edge_index[0])} | full edge len: {len(train_edge_index[0])}")
+    
+    #assert train_edge_index.max().item() < (N_USERS + N_ITEMS), "Index out of bounds"
+    #assert train_edge_index.min().item() >= 0, "Negative index found"
+    
+    LATENT_DIM = config['emb_dim']
+    N_LAYERS = config['layers']
+    EPOCHS = config['epochs']
+    BATCH_SIZE = config['batch_size']
+    DECAY = config['decay']
+    LR = config['lr']
+    K = config['top_k']
+    IS_TEMP = config['enable_temp_emb']
+    MODEL = config['model']
+
+    lightgcn = RecSysGNN(
+      latent_dim=LATENT_DIM, 
+      num_layers=N_LAYERS,
+      num_users=N_USERS,
+      num_items=N_ITEMS,
+      model=MODEL,
+      is_temp=IS_TEMP,
+      weight_mode = config['weight_mode']
+    )
+    lightgcn.to(device)
+
+    optimizer = torch.optim.Adam(lightgcn.parameters(), lr=LR)
+    if verbose >=1:
+        print("Size of Learnable Embedding : ", [x.shape for x in list(lightgcn.parameters())])
+
+    #train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_users, n_items, train_edge_index, decay, K)
+    losses, metrics = train_and_eval(EPOCHS, 
+                                     lightgcn, 
+                                     optimizer, 
+                                     train_df, 
+                                     test_df, 
+                                     BATCH_SIZE, 
+                                     N_USERS, 
+                                     N_ITEMS, 
+                                     train_edge_index, 
+                                     train_edge_attrs, 
+                                     DECAY, 
+                                     K, 
+                                     device, 
+                                     exp_n, 
+                                     g_seed)
+
+   
+    return losses, metrics
+
+
+def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
+
+    N_USERS = train_df['user_id'].nunique()
+    N_ITEMS = train_df['item_id'].nunique()
+
+    u_t = torch.LongTensor(train_df.user_id)
+    i_t = torch.LongTensor(train_df.item_id) + N_USERS
+
+    if verbose >= 1:
+        # Verify the ranges
+        print("max user index: ", u_t.max().item(), "| min user index: ", u_t.min().item())
+        print("max item index: ", i_t.max().item(), "| min item index:", i_t.min().item())
+
+    bi_train_edge_index = torch.stack((
+      torch.cat([u_t, i_t]),
+      torch.cat([i_t, u_t])
+    )).to(device)
+         
+    #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
+    knn_train_adj_df = create_uuii_adjmat_by_top_k_2(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
     knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
     
     #print(len(knn_train_edge_index[0]))

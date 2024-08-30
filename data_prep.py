@@ -117,7 +117,10 @@ def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False):
     
     filtered_similarity_matrix = np.zeros_like(similarity_matrix)
     
-    for i in range(similarity_matrix.shape[0]):
+    pbar = tqdm(range(similarity_matrix.shape[0]), bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', ascii="░❯")
+    pbar.set_description(f'Preparing similarity matrix | Top-K: {top_k}')
+    
+    for i in pbar:
         filtered_similarity_matrix[i, top_k_indices[i]] = similarity_matrix[i, top_k_indices[i]]
     
     return filtered_similarity_matrix
@@ -296,6 +299,55 @@ def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_
     # Convert to NumPy arrays
     user_ids = df['user_id_idx'].to_numpy()
     item_ids = df['item_id_idx'].to_numpy()
+
+    # Create a sparse matrix directly
+    user_item_matrix_coo = coo_matrix((np.ones(len(df)), (user_ids, item_ids)))
+    user_item_matrix = user_item_matrix_coo.toarray()
+
+    #user_user_jaccard = jaccard_similarity(user_item_matrix.values, threshold=j_u_thresh)
+    if u_sim == 'cosine':
+        user_user_sim_matrix = cosine_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
+    elif u_sim == 'mix':
+        user_user_sim_matrix = fusion_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
+    else:
+        user_user_sim_matrix = jaccard_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
+    
+    if i_sim == 'cosine':
+        item_item_sim_matrix = cosine_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim)
+    elif i_sim == 'mix':
+        item_item_sim_matrix = fusion_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim)
+    else:
+        item_item_sim_matrix = jaccard_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim)
+    
+    user_user_adjacency = user_user_sim_matrix
+    item_item_adjacency = item_item_sim_matrix
+    
+    # Dimensions
+    num_users = user_user_adjacency.shape[0]
+    num_items = item_item_adjacency.shape[0]
+    total_size = num_users + num_items
+
+    # Initialize combined adjacency matrix
+    combined_adjacency = np.zeros((total_size, total_size))
+
+    # Fill in the user-user and item-item parts
+    combined_adjacency[:num_users, :num_users] = user_user_adjacency
+    combined_adjacency[num_users:, num_users:] = item_item_adjacency
+    
+    # Convert to DataFrame for readability
+    combined_adjacency_df = pd.DataFrame(combined_adjacency)
+    
+    return combined_adjacency_df
+
+def create_uuii_adjmat_by_top_k_2(df, u_sim='consine', i_sim='jaccard', u_sim_top_k=20, i_sim_top_k=20, self_sim=False):
+    # Create user-item matrix
+    #ddf = dd.from_pandas(df, npartitions=10)
+    #user_item_matrix = ddf.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0).compute()
+    #user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0)
+    
+    # Convert to NumPy arrays
+    user_ids = df['user_id'].to_numpy()
+    item_ids = df['item_id'].to_numpy()
 
     # Create a sparse matrix directly
     user_item_matrix_coo = coo_matrix((np.ones(len(df)), (user_ids, item_ids)))
@@ -660,6 +712,37 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
         
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
         ratings_df = df_filtered.copy()
+        
+    elif dataset == 'gowalla_2':
+        # Paths for ML-1M data files
+        train_path = f'data/gowalla/train_coo.txt'
+        test_path = f'data/gowalla/test_coo.txt'
+        
+        # Load the entire ratings dataframe into memory
+        df = pd.read_csv(train_path, header=0, sep=' ')
+        
+        # Convert the timestamp column to Unix timestamps
+        #df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
+
+        # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
+        df_selected = df[['user_id', 'item_id', 'rating', 'timestamp']]
+              
+        # Create a copy of the DataFrame to avoid SettingWithCopyWarning
+        train_df = df_selected.copy()
+        
+        # Load the entire ratings dataframe into memory
+        df = pd.read_csv(test_path, header=0, sep=' ')
+        
+        # Convert the timestamp column to Unix timestamps
+        #df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
+
+        # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
+        df_selected = df[['user_id', 'item_id', 'rating', 'timestamp']]
+              
+        # Create a copy of the DataFrame to avoid SettingWithCopyWarning
+        test_df = df_selected.copy()
+        
+        return train_df, test_df
     
 
     if ratings_df is not None:
