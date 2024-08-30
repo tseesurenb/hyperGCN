@@ -235,31 +235,18 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
         bpr_loss_list = []
         reg_loss_list = []
         
+        #start_time = time.time()
+        
         model.train()
-        for batch_idx in range(n_batch):
+        for batch_idx in tqdm(range(n_batch)):
 
             optimizer.zero_grad()
             # Start the timer
-            start_time = time.time()
+            
             users, pos_items, neg_items = batch_data_loader(train_df, batch_size, n_users, n_items, device)
-            
-            # End the timer
-            end_time = time.time()
-            # Calculate the time taken
-            execution_time = end_time - start_time
-            print(f"Execution time (Batch data loader): {execution_time:.6f} seconds")
-            
-            start_time = time.time()
             
             users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(users, pos_items, neg_items, train_edge_index, train_edge_attrs)
             
-            # End the timer
-            end_time = time.time()
-            # Calculate the time taken
-            execution_time = end_time - start_time
-            print(f"Execution time (Encode minibatch): {execution_time:.6f} seconds")
-
-            start_time = time.time()
             
             bpr_loss, reg_loss = compute_bpr_loss(
                 users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
@@ -267,12 +254,6 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
             reg_loss = decay * reg_loss
             final_loss = bpr_loss + reg_loss
             
-            # End the timer
-            end_time = time.time()
-            # Calculate the time taken
-            execution_time = end_time - start_time
-            print(f"Execution time (Computer bpr loss): {execution_time:.6f} seconds")
-
             final_loss.backward()
             optimizer.step()
 
@@ -280,6 +261,12 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
             bpr_loss_list.append(bpr_loss.item())
             reg_loss_list.append(reg_loss.item())
 
+        # End the timer
+        #end_time = time.time()
+        # Calculate the time taken
+        #execution_time = end_time - start_time
+        #print(f"Execution time (A batch training): {execution_time:.6f} seconds")
+            
         model.eval()
         with torch.no_grad():
             _, out = model(train_edge_index, train_edge_attrs)
