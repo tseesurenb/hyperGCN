@@ -23,6 +23,7 @@ from sklearn import preprocessing as pp
 from world import config
 import data_prep as dp
 from data_prep import get_edge_index, create_uuii_adjmat_by_top_k
+import time
 
 # ANSI escape codes for bold and red
 br = "\033[1;31m"
@@ -238,15 +239,39 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
         for batch_idx in range(n_batch):
 
             optimizer.zero_grad()
-
+            # Start the timer
+            start_time = time.time()
             users, pos_items, neg_items = batch_data_loader(train_df, batch_size, n_users, n_items, device)
+            
+            # End the timer
+            end_time = time.time()
+            # Calculate the time taken
+            execution_time = end_time - start_time
+            print(f"Execution time (Batch data loader): {execution_time:.6f} seconds")
+            
+            start_time = time.time()
+            
             users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(users, pos_items, neg_items, train_edge_index, train_edge_attrs)
+            
+            # End the timer
+            end_time = time.time()
+            # Calculate the time taken
+            execution_time = end_time - start_time
+            print(f"Execution time (Encode minibatch): {execution_time:.6f} seconds")
 
+            start_time = time.time()
+            
             bpr_loss, reg_loss = compute_bpr_loss(
                 users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
             )
             reg_loss = decay * reg_loss
             final_loss = bpr_loss + reg_loss
+            
+            # End the timer
+            end_time = time.time()
+            # Calculate the time taken
+            execution_time = end_time - start_time
+            print(f"Execution time (Computer bpr loss): {execution_time:.6f} seconds")
 
             final_loss.backward()
             optimizer.step()
