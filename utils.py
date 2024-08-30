@@ -181,7 +181,7 @@ def get_metrics_old(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data
 
     return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
 
-def batch_data_loader(data, batch_size, n_usr, n_itm, device):
+def batch_data_loader3(data, batch_size, n_usr, n_itm, device):
     # Precompute a dictionary of user interactions to avoid repeated groupby operations
     user_interactions = data.groupby('user_id')['item_id'].apply(list).to_dict()
 
@@ -213,7 +213,39 @@ def batch_data_loader(data, batch_size, n_usr, n_itm, device):
         torch.LongTensor(pos_items).to(device) + n_usr,
         torch.LongTensor(neg_items).to(device) + n_usr
     )
+
+def batch_data_loader(data, batch_size, n_usr, n_itm, device):
     
+    def sample_neg(x):
+        # Efficient negative sampling using NumPy
+        neg_id = np.random.randint(0, n_itm)
+        while neg_id in x:
+            neg_id = np.random.randint(0, n_itm)
+        return neg_id
+
+    # Vectorize user sampling
+    users = np.random.choice(n_usr, batch_size, replace=n_usr < batch_size)
+
+    # Efficiently create DataFrame
+    users_df = pd.DataFrame({'users': users})
+
+    # Merge with interacted items efficiently
+    interacted_items_df = pd.merge(data, users_df, how='right', on='user_id')
+
+    # Vectorize positive item sampling
+    pos_items = interacted_items_df['item_id'].apply(lambda x: np.random.choice(x)).values
+
+    # Vectorize negative item sampling
+    neg_items = interacted_items_df['item_id'].apply(lambda x: sample_neg(x)).values
+
+    # Convert to tensors
+    users_tensor = torch.LongTensor(users).to(device)
+    pos_items_tensor = torch.LongTensor(pos_items + n_usr).to(device)
+    neg_items_tensor = torch.LongTensor(neg_items + n_usr).to(device)
+
+    return users_tensor, pos_items_tensor, neg_items_tensor
+
+
 def batch_data_loader2(data, batch_size, n_usr, n_itm, device):
 
     def sample_neg(x):
