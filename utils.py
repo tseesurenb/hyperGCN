@@ -214,7 +214,7 @@ def batch_data_loader3(data, batch_size, n_usr, n_itm, device):
         torch.LongTensor(neg_items).to(device) + n_usr
     )
 
-def batch_data_loader(data, batch_size, n_usr, n_itm, device):
+def batch_data_loader4(data, batch_size, n_usr, n_itm, device):
     
     def sample_neg(x):
         # Efficient negative sampling using NumPy
@@ -246,7 +246,7 @@ def batch_data_loader(data, batch_size, n_usr, n_itm, device):
     return users_tensor, pos_items_tensor, neg_items_tensor
 
 
-def batch_data_loader2(data, batch_size, n_usr, n_itm, device):
+def batch_data_loader(data, batch_size, n_usr, n_itm, device):
 
     def sample_neg(x):
         while True:
@@ -257,16 +257,24 @@ def batch_data_loader2(data, batch_size, n_usr, n_itm, device):
     interacted_items_df = data.groupby('user_id')['item_id'].apply(list).reset_index()
     indices = [x for x in range(n_usr)]
 
-    if n_usr < batch_size:
-        users = [random.choice(indices) for _ in range(batch_size)]
-    else:
-        users = random.sample(indices, batch_size)
-        
+    #if n_usr < batch_size:
+    #    users = [random.choice(indices) for _ in range(batch_size)]
+    #else:
+    #    users = random.sample(indices, batch_size)
+     
+    users = np.random.choice(n_usr, batch_size, replace=n_usr < batch_size)
+       
     users.sort()
     users_df = pd.DataFrame(users,columns = ['users'])
 
     interacted_items_df = pd.merge(interacted_items_df, users_df, how = 'right', left_on = 'user_id', right_on = 'users')
-    pos_items = interacted_items_df['item_id'].apply(lambda x : random.choice(x)).values
+    #pos_items = interacted_items_df['item_id'].apply(lambda x : random.choice(x)).values
+    #neg_items = interacted_items_df['item_id'].apply(lambda x: sample_neg(x)).values
+    
+    # Vectorize positive item sampling
+    pos_items = interacted_items_df['item_id'].apply(lambda x: np.random.choice(x)).values
+
+    # Vectorize negative item sampling
     neg_items = interacted_items_df['item_id'].apply(lambda x: sample_neg(x)).values
 
     return (
