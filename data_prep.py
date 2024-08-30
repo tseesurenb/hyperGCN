@@ -116,6 +116,8 @@ def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False):
     
     print('Cosine similarity computed.')
     
+    similarity_matrix = similarity_matrix.toarray() 
+    
     if not self_sim:
         np.fill_diagonal(similarity_matrix, 0) # Set the diagonal to zero (no self-similarity)
     else:
