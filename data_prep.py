@@ -10,6 +10,8 @@ from scipy.stats import pearsonr
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn import preprocessing
 
+from scipy.sparse import coo_matrix, vstack, hstack
+
 from tqdm import tqdm
 
 #import dask.dataframe as dd
@@ -436,23 +438,38 @@ def create_uuii_adjmat_by_top_k_2(df, u_sim='consine', i_sim='jaccard', u_sim_to
     else:
         item_item_sim_matrix = jaccard_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim)
     
-    user_user_adjacency = user_user_sim_matrix
-    item_item_adjacency = item_item_sim_matrix
+    # Stack user-user and item-item matrices vertically and horizontally
+    num_users = user_user_sim_matrix.shape[0]
+    num_items = item_item_sim_matrix.shape[0]
+
+    # Initialize combined sparse matrix
+    combined_adjacency = vstack([
+        hstack([user_user_sim_matrix, coo_matrix((num_users, num_items))]),
+        hstack([coo_matrix((num_items, num_users)), item_item_sim_matrix])
+    ])
+
+    # Convert to DataFrame for readability if needed
+    combined_adjacency_df = pd.DataFrame(combined_adjacency.toarray())
+
+    print('User-item and item-item adjacency matrices created.')
+    
+    #user_user_adjacency = user_user_sim_matrix
+    #item_item_adjacency = item_item_sim_matrix
     
     # Dimensions
-    num_users = user_user_adjacency.shape[0]
-    num_items = item_item_adjacency.shape[0]
-    total_size = num_users + num_items
+    #num_users = user_user_adjacency.shape[0]
+    #num_items = item_item_adjacency.shape[0]
+    #total_size = num_users + num_items
 
     # Initialize combined adjacency matrix
-    combined_adjacency = np.zeros((total_size, total_size))
+    #combined_adjacency = np.zeros((total_size, total_size))
 
     # Fill in the user-user and item-item parts
-    combined_adjacency[:num_users, :num_users] = user_user_adjacency
-    combined_adjacency[num_users:, num_users:] = item_item_adjacency
+    #combined_adjacency[:num_users, :num_users] = user_user_adjacency
+    #combined_adjacency[num_users:, num_users:] = item_item_adjacency
     
     # Convert to DataFrame for readability
-    combined_adjacency_df = pd.DataFrame(combined_adjacency)
+    #combined_adjacency_df = pd.DataFrame(combined_adjacency)
     
     print('User-item and item-item adjacency matrices created.')
     
