@@ -25,10 +25,11 @@ rs = "\033[0m"
 
 def get_edge_index(matrix_df):
     # Convert the DataFrame to a numpy array
-    dense_matrix = matrix_df.values
+    #dense_matrix = matrix_df.values
     
     # Convert to sparse COO matrix
-    sparse_matrix = coo_matrix(dense_matrix)
+    #sparse_matrix = coo_matrix(dense_matrix)
+    sparse_matrix = matrix_df
     
     # Extract row, column indices and data values
     row_indices = sparse_matrix.row
@@ -449,7 +450,7 @@ def create_uuii_adjmat_by_top_k_2(df, u_sim='consine', i_sim='jaccard', u_sim_to
     ])
 
     # Convert to DataFrame for readability if needed
-    combined_adjacency_df = pd.DataFrame(combined_adjacency.toarray())
+    #combined_adjacency_df = pd.DataFrame(combined_adjacency.toarray())
 
     print('User-item and item-item adjacency matrices created.')
     
@@ -473,7 +474,8 @@ def create_uuii_adjmat_by_top_k_2(df, u_sim='consine', i_sim='jaccard', u_sim_to
     
     print('User-item and item-item adjacency matrices created.')
     
-    return combined_adjacency_df
+    #return combined_adjacency_df
+    return combined_adjacency
 
 
 def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_interaction_threshold = 20, verbose = 0):
