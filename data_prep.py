@@ -103,9 +103,12 @@ def cosine_similarity_by_threshold(matrix, threshold=0.0, self_sim=False):
     return similarity_matrix
 
 def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False):
+    print('Computing cosine similarity by top-k...')
     binary_matrix = (matrix > 0).astype(int)
     
     similarity_matrix = cosine_similarity(binary_matrix)
+    
+    print('Cosine similarity computed.')
     
     if not self_sim:
         np.fill_diagonal(similarity_matrix, 0) # Set the diagonal to zero (no self-similarity)
@@ -116,6 +119,8 @@ def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False):
     top_k_indices = np.argsort(-similarity_matrix, axis=1)[:, :top_k]
     
     filtered_similarity_matrix = np.zeros_like(similarity_matrix)
+    
+    print('Filtering top-k values...')
     
     pbar = tqdm(range(similarity_matrix.shape[0]), bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', ascii="░❯")
     pbar.set_description(f'Preparing similarity matrix | Top-K: {top_k}')
