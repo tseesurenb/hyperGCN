@@ -50,6 +50,63 @@ def compute_bpr_loss(users, users_emb, pos_emb, neg_emb, user_emb0,  pos_emb0, n
     return bpr_loss, reg_loss
 
 def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
+    test_user_ids = torch.LongTensor(test_data['user_id'].unique()).to(device)
+    
+    # Compute the score of all user-item pairs, including the base embeddings
+    relevance_score = torch.matmul(user_Embed_wts, item_Embed_wts.T)
+    
+    # Create sparse tensor of all user-item interactions
+    i = torch.stack((
+        torch.LongTensor(train_data['user_id'].values),
+        torch.LongTensor(train_data['item_id'].values)
+    ))
+    v = torch.ones(len(train_data), dtype=torch.float32)
+    
+    interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items)).to(device)
+    
+    # Convert sparse tensor to dense only if absolutely necessary
+    relevance_score = torch.sparse.mm(interactions_t, relevance_score)
+    
+    # Mask out training user-item interactions from metric computation
+    relevance_score = torch.mul(relevance_score, (1 - interactions_t.to_dense()))
+    
+    # Compute top scoring items for each user
+    topk_relevance_indices = torch.topk(relevance_score, K, dim=1).indices
+    
+    topk_relevance_indices_cpu = topk_relevance_indices.cpu()
+    topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices_cpu.numpy(), columns=['top_indx_'+str(x+1) for x in range(K)])
+    
+    topk_relevance_indices_df['user_ID'] = topk_relevance_indices_df.index
+    topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_'+str(x+1) for x in range(K)]].values.tolist()
+    topk_relevance_indices_df = topk_relevance_indices_df[['user_ID','top_rlvnt_itm']]
+
+    # Measure overlap between recommended (top-scoring) and held-out user-item interactions
+    test_interacted_items = test_data.groupby('user_id')['item_id'].apply(list).reset_index()
+    metrics_df = pd.merge(test_interacted_items, topk_relevance_indices_df, how='left', left_on='user_id', right_on=['user_ID'])
+    metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
+
+    metrics_df['recall'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / len(x['item_id']), axis=1)
+    metrics_df['precision'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / K, axis=1)
+    
+    # Calculate nDCG
+    def dcg_at_k(r, k):
+        r = np.asfarray(r)[:k]
+        if r.size:
+            return np.sum(r / np.log2(np.arange(2, r.size + 2)))
+        return 0.0
+
+    def ndcg_at_k(relevance_scores, k):
+        dcg_max = dcg_at_k(sorted(relevance_scores, reverse=True), k)
+        if not dcg_max:
+            return 0.0
+        return dcg_at_k(relevance_scores, k) / dcg_max
+
+    metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
+
+    return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
+
+
+def get_metrics_2(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
     test_user_ids = torch.LongTensor(test_data['user_id'].unique())
     
     # Compute the score of all user-item pairs, including the base embeddings
