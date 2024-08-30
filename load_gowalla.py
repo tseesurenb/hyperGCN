@@ -13,7 +13,7 @@ with open(txt_file_path, 'r') as txt_file:
     # Open the CSV file for writing
     with open(csv_file_path, 'w', newline='') as csv_file:
         writer = csv.writer(csv_file, delimiter=',')
-        writer.writerow(['userId', 'itemId', 'rating', 'timestamp'])
+        writer.writerow(['user_id', 'item_id', 'rating', 'timestamp'])
 
         # Process each line in the text file
         for line in tqdm(txt_file, total=total_lines, desc="Processing TXT", unit="lines"):
@@ -21,15 +21,15 @@ with open(txt_file_path, 'r') as txt_file:
                 # Split the line into components based on tab separation
                 components = line.strip().split('\t')
                 
-                userId = components[0]
+                user_id = components[0]
                 timestamp = components[1]
-                itemId = components[4]
+                item_id = components[4]
                 rating = 4  # Fixed rating value
                 
                 # Remove 'T' and 'Z' from the timestamp to make it a proper format
                 formatted_timestamp = timestamp.replace('T', ' ').replace('Z', '')
 
-                writer.writerow([userId, itemId, rating, formatted_timestamp])
+                writer.writerow([user_id, item_id, rating, formatted_timestamp])
                     
             except Exception as e:
                 print(f"Error processing line: {e}")

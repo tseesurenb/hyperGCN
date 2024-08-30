@@ -26,7 +26,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f'Device: {device}')
 
 # STEP 2: Load the data and filter only ratings >= 3
-train_df, test_df = dp.load_data(dataset = config['dataset'], u_min_interaction_threshold = 10, i_min_interaction_threshold = 10, verbose=config['verbose'])
+train_df, test_df = dp.load_data_from_adj_list(dataset = config['dataset'])
 
 num_users = train_df['user_id'].nunique()
 num_items = train_df['item_id'].nunique()
