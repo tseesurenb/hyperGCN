@@ -53,7 +53,6 @@ def compute_bpr_loss(users, users_emb, pos_emb, neg_emb, user_emb0,  pos_emb0, n
 def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
     test_user_ids = torch.LongTensor(test_data['user_id'].unique()).to(device)
 
-    print("\ncomputing relevance scores")
     # Compute the score of all user-item pairs in chunks to avoid large memory allocation
     chunk_size = 5000  # Adjust this based on available GPU memory
     topk_relevance_indices = []
@@ -89,8 +88,6 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
     topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_' + str(x + 1) for x in range(K)]].values.tolist()
     topk_relevance_indices_df = topk_relevance_indices_df[['user_ID', 'top_rlvnt_itm']]
 
-    print("\ndone computing top scoring items for each user")
-
     # Measure overlap between recommended (top-scoring) and held-out user-item interactions
     test_interacted_items = test_data.groupby('user_id')['item_id'].apply(list).reset_index()
     metrics_df = pd.merge(test_interacted_items, topk_relevance_indices_df, how='left', left_on='user_id', right_on='user_ID')
@@ -99,8 +96,6 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
     metrics_df['recall'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / len(x['item_id']), axis=1)
     metrics_df['precision'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / K, axis=1)
 
-    print("\ndone computing recall and precision")
-
     # Calculate nDCG
     def dcg_at_k(r, k):
         r = np.asfarray(r)[:k]
@@ -116,81 +111,8 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
 
     metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
 
-    print("\ndone computing nDCG")
-
     return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
 
-def get_metrics3(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
-    test_user_ids = torch.LongTensor(test_data['user_id'].unique()).to(device)
-    
-    print("\ncomputing relevance scores")
-    # Compute the score of all user-item pairs, including the base embeddings
-    relevance_score = torch.matmul(user_Embed_wts, item_Embed_wts.T)  # User-item relevance score matrix
-    
-    print("\ndone computing relevance scores")
-    
-    print("\npreparing interactions")
-    
-    # Create sparse tensor of all user-item interactions
-    i = torch.stack((
-        torch.LongTensor(train_data['user_id'].values),
-        torch.LongTensor(train_data['item_id'].values)
-    ))
-    v = torch.ones(len(train_data), dtype=torch.float32)
-    
-    print("\ncreating sparse tensor")
-    interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items)).to(device)
-    
-    print("\ndone creating sparse tensor")
-    # Convert sparse tensor to dense if necessary
-    interactions_dense = interactions_t.to_dense()
-    
-    # Mask out training user-item interactions from metric computation
-    relevance_score = relevance_score * (1 - interactions_dense)  # Mask training interactions
-    
-    print("\ndone preparing interactions")
-    
-    print("\ncomputing top scoring items for each user")
-    # Compute top scoring items for each user
-    topk_relevance_indices = torch.topk(relevance_score, K, dim=1).indices
-    
-    topk_relevance_indices_cpu = topk_relevance_indices.cpu()
-    topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices_cpu.numpy(), columns=['top_indx_'+str(x+1) for x in range(K)])
-    
-    topk_relevance_indices_df['user_ID'] = topk_relevance_indices_df.index
-    topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_'+str(x+1) for x in range(K)]].values.tolist()
-    topk_relevance_indices_df = topk_relevance_indices_df[['user_ID', 'top_rlvnt_itm']]
-    
-    print("\ndone computing top scoring items for each user")
-
-    # Measure overlap between recommended (top-scoring) and held-out user-item interactions
-    test_interacted_items = test_data.groupby('user_id')['item_id'].apply(list).reset_index()
-    metrics_df = pd.merge(test_interacted_items, topk_relevance_indices_df, how='left', left_on='user_id', right_on=['user_ID'])
-    metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
-
-    metrics_df['recall'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / len(x['item_id']), axis=1)
-    metrics_df['precision'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / K, axis=1)
-    
-    print("\ndone computing recall and precision")
-    
-    # Calculate nDCG
-    def dcg_at_k(r, k):
-        r = np.asfarray(r)[:k]
-        if r.size:
-            return np.sum(r / np.log2(np.arange(2, r.size + 2)))
-        return 0.0
-
-    def ndcg_at_k(relevance_scores, k):
-        dcg_max = dcg_at_k(sorted(relevance_scores, reverse=True), k)
-        if not dcg_max:
-            return 0.0
-        return dcg_at_k(relevance_scores, k) / dcg_max
-
-    metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
-
-    print("\ndone computing nDCG")
-    
-    return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
 
 def get_metrics_old(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
     test_user_ids = torch.LongTensor(test_data['user_id_idx'].unique())
@@ -252,71 +174,6 @@ def get_metrics_old(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data
 
 
     return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
-
-def batch_data_loader3(data, batch_size, n_usr, n_itm, device):
-    # Precompute a dictionary of user interactions to avoid repeated groupby operations
-    user_interactions = data.groupby('user_id')['item_id'].apply(list).to_dict()
-
-    # Generate a list of user indices
-    if n_usr < batch_size:
-        users = np.random.choice(n_usr, batch_size, replace=True)
-    else:
-        users = np.random.choice(n_usr, batch_size, replace=False)
-    
-    users.sort()
-
-    # Preallocate arrays for positive and negative items
-    pos_items = np.empty(batch_size, dtype=np.int64)
-    neg_items = np.empty(batch_size, dtype=np.int64)
-    
-    for i, user in enumerate(users):
-        items = user_interactions[user]
-        pos_items[i] = np.random.choice(items)
-        # Sample a negative item not in the user's interaction history
-        while True:
-            neg_id = np.random.randint(0, n_itm)
-            if neg_id not in items:
-                neg_items[i] = neg_id
-                break
-
-    # Convert arrays to tensors and move to the specified device
-    return (
-        torch.LongTensor(users).to(device), 
-        torch.LongTensor(pos_items).to(device) + n_usr,
-        torch.LongTensor(neg_items).to(device) + n_usr
-    )
-
-def batch_data_loader4(data, batch_size, n_usr, n_itm, device):
-    
-    def sample_neg(x):
-        # Efficient negative sampling using NumPy
-        neg_id = np.random.randint(0, n_itm)
-        while neg_id in x:
-            neg_id = np.random.randint(0, n_itm)
-        return neg_id
-
-    # Vectorize user sampling
-    users = np.random.choice(n_usr, batch_size, replace=n_usr < batch_size)
-
-    # Efficiently create DataFrame
-    users_df = pd.DataFrame({'users': users})
-
-    # Merge with interacted items efficiently
-    interacted_items_df = pd.merge(data, users_df, how='right', on='user_id')
-
-    # Vectorize positive item sampling
-    pos_items = interacted_items_df['item_id'].apply(lambda x: np.random.choice(x)).values
-
-    # Vectorize negative item sampling
-    neg_items = interacted_items_df['item_id'].apply(lambda x: sample_neg(x)).values
-
-    # Convert to tensors
-    users_tensor = torch.LongTensor(users).to(device)
-    pos_items_tensor = torch.LongTensor(pos_items + n_usr).to(device)
-    neg_items_tensor = torch.LongTensor(neg_items + n_usr).to(device)
-
-    return users_tensor, pos_items_tensor, neg_items_tensor
-
 
 def batch_data_loader(data, batch_size, n_usr, n_itm, device):
 
