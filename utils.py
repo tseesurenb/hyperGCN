@@ -53,7 +53,7 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
     test_user_ids = torch.LongTensor(test_data['user_id'].unique()).to(device)
     
     # Compute the score of all user-item pairs, including the base embeddings
-    relevance_score = torch.matmul(user_Embed_wts, item_Embed_wts.T)
+    relevance_score = torch.matmul(user_Embed_wts, item_Embed_wts.T)  # User-item relevance score matrix
     
     # Create sparse tensor of all user-item interactions
     i = torch.stack((
@@ -64,11 +64,11 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
     
     interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items)).to(device)
     
-    # Convert sparse tensor to dense only if absolutely necessary
-    relevance_score = torch.sparse.mm(interactions_t, relevance_score)
+    # Convert sparse tensor to dense if necessary
+    interactions_dense = interactions_t.to_dense()
     
     # Mask out training user-item interactions from metric computation
-    relevance_score = torch.mul(relevance_score, (1 - interactions_t.to_dense()))
+    relevance_score = relevance_score * (1 - interactions_dense)  # Mask training interactions
     
     # Compute top scoring items for each user
     topk_relevance_indices = torch.topk(relevance_score, K, dim=1).indices
@@ -78,7 +78,7 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
     
     topk_relevance_indices_df['user_ID'] = topk_relevance_indices_df.index
     topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_'+str(x+1) for x in range(K)]].values.tolist()
-    topk_relevance_indices_df = topk_relevance_indices_df[['user_ID','top_rlvnt_itm']]
+    topk_relevance_indices_df = topk_relevance_indices_df[['user_ID', 'top_rlvnt_itm']]
 
     # Measure overlap between recommended (top-scoring) and held-out user-item interactions
     test_interacted_items = test_data.groupby('user_id')['item_id'].apply(list).reset_index()
@@ -104,6 +104,7 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
     metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
 
     return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
+
 
 
 def get_metrics_2(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
