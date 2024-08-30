@@ -9,7 +9,7 @@ from scipy.sparse import coo_matrix
 from scipy.stats import pearsonr
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn import preprocessing
-import similarity_functions as sim
+import similarity_func as sim
 
 from scipy.sparse import coo_matrix, vstack, hstack
 
