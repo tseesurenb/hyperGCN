@@ -22,7 +22,7 @@ from model import RecSysGNN
 from sklearn import preprocessing as pp
 from world import config
 import data_prep as dp
-from data_prep import get_edge_index, create_uuii_adjmat_by_top_k, create_uuii_adjmat_by_threshold, create_uuii_adjmat_by_top_k_2
+from data_prep import get_edge_index, create_uuii_adjmat_by_top_k, create_uuii_adjmat_by_top_k_2
 
 # ANSI escape codes for bold and red
 br = "\033[1;31m"
