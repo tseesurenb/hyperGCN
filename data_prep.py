@@ -345,6 +345,7 @@ def create_uuii_adjmat_by_top_k_2(df, u_sim='consine', i_sim='jaccard', u_sim_to
     #user_item_matrix = ddf.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0).compute()
     #user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0)
     
+    print('Creating user-item matrix...')
     # Convert to NumPy arrays
     user_ids = df['user_id'].to_numpy()
     item_ids = df['item_id'].to_numpy()
@@ -385,6 +386,8 @@ def create_uuii_adjmat_by_top_k_2(df, u_sim='consine', i_sim='jaccard', u_sim_to
     
     # Convert to DataFrame for readability
     combined_adjacency_df = pd.DataFrame(combined_adjacency)
+    
+    print('User-item and item-item adjacency matrices created.')
     
     return combined_adjacency_df
 
