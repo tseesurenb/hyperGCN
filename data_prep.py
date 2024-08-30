@@ -118,10 +118,10 @@ def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False):
     
     similarity_matrix = similarity_matrix.toarray() 
     
-    if not self_sim:
-        np.fill_diagonal(similarity_matrix, 0) # Set the diagonal to zero (no self-similarity)
-    else:
-        np.fill_diagonal(similarity_matrix, 1)
+    #if not self_sim:
+    #    np.fill_diagonal(similarity_matrix, 0) # Set the diagonal to zero (no self-similarity)
+    #else:
+    #    np.fill_diagonal(similarity_matrix, 1)
     
     # Filter top K values for each row
     top_k_indices = np.argsort(-similarity_matrix, axis=1)[:, :top_k]
