@@ -8,7 +8,7 @@ import torch
 import torch.backends
 import torch.mps
 import numpy as np
-from utils import run_experiment, run_experiment_2, plot_loss
+from utils import run_experiment, run_experiment_2, plot_results
 import data_prep as dp 
 from world import config
 import pickle
