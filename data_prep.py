@@ -106,7 +106,13 @@ def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False):
     print('Computing cosine similarity by top-k...')
     binary_matrix = (matrix > 0).astype(int)
     
-    similarity_matrix = cosine_similarity(binary_matrix)
+    # Convert the binary matrix to a sparse matrix
+    sparse_matrix = csr_matrix(binary_matrix)
+
+    # Compute sparse cosine similarity
+    similarity_matrix = cosine_similarity(sparse_matrix, dense_output=False)
+    
+    #similarity_matrix = cosine_similarity(binary_matrix)
     
     print('Cosine similarity computed.')
     
