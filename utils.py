@@ -180,8 +180,41 @@ def get_metrics_old(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data
 
 
     return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
-    
+
 def batch_data_loader(data, batch_size, n_usr, n_itm, device):
+    # Precompute a dictionary of user interactions to avoid repeated groupby operations
+    user_interactions = data.groupby('user_id')['item_id'].apply(list).to_dict()
+
+    # Generate a list of user indices
+    if n_usr < batch_size:
+        users = np.random.choice(n_usr, batch_size, replace=True)
+    else:
+        users = np.random.choice(n_usr, batch_size, replace=False)
+    
+    users.sort()
+
+    # Preallocate arrays for positive and negative items
+    pos_items = np.empty(batch_size, dtype=np.int64)
+    neg_items = np.empty(batch_size, dtype=np.int64)
+    
+    for i, user in enumerate(users):
+        items = user_interactions[user]
+        pos_items[i] = np.random.choice(items)
+        # Sample a negative item not in the user's interaction history
+        while True:
+            neg_id = np.random.randint(0, n_itm)
+            if neg_id not in items:
+                neg_items[i] = neg_id
+                break
+
+    # Convert arrays to tensors and move to the specified device
+    return (
+        torch.LongTensor(users).to(device), 
+        torch.LongTensor(pos_items).to(device) + n_usr,
+        torch.LongTensor(neg_items).to(device) + n_usr
+    )
+    
+def batch_data_loader2(data, batch_size, n_usr, n_itm, device):
 
     def sample_neg(x):
         while True:
