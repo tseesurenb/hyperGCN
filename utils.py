@@ -54,36 +54,35 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
     test_user_ids = torch.LongTensor(test_data['user_id'].unique()).to(device)
 
     print("\ncomputing relevance scores")
-    # Compute the score of all user-item pairs using sparse matrix multiplication
-    relevance_score = torch.matmul(user_Embed_wts, item_Embed_wts.T).to(device)  # User-item relevance score matrix
+    # Compute the score of all user-item pairs in chunks to avoid large memory allocation
+    chunk_size = 5000  # Adjust this based on available GPU memory
+    topk_relevance_indices = []
+    
+    for i in range(0, n_users, chunk_size):
+        user_chunk = user_Embed_wts[i:i+chunk_size]
+        relevance_score_chunk = torch.matmul(user_chunk, item_Embed_wts.T)  # User-item relevance score matrix
+        
+        # Create sparse tensor of user-item interactions for this chunk
+        chunk_user_ids = torch.arange(i, min(i + chunk_size, n_users)).to(device)
+        user_interactions = train_data[train_data['user_id'].isin(chunk_user_ids.cpu())]
+        
+        i_chunk = torch.stack((
+            torch.LongTensor(user_interactions['user_id'].values) - i,
+            torch.LongTensor(user_interactions['item_id'].values)
+        ))
+        v_chunk = torch.ones(len(user_interactions), dtype=torch.float32)
 
-    print("\ndone computing relevance scores")
-
-    print("\npreparing interactions")
-    # Create sparse tensor of all user-item interactions
-    i = torch.stack((
-        torch.LongTensor(train_data['user_id'].values),
-        torch.LongTensor(train_data['item_id'].values)
-    ))
-    v = torch.ones(len(train_data), dtype=torch.float32)
-
-    interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items)).to(device)
-
-    print("\ndone creating sparse tensor")
-
-    # Mask out training user-item interactions from metric computation directly on relevance score
-    relevance_score = relevance_score.to_sparse()
-    relevance_score = relevance_score.coalesce()  # Ensure unique indices
-    relevance_score = relevance_score * (1 - interactions_t).to_sparse()
-
-    print("\ndone preparing interactions")
-
-    print("\ncomputing top scoring items for each user")
-    # Convert the sparse matrix back to dense for topk computation
-    relevance_score_dense = relevance_score.to_dense()
-
-    # Compute top scoring items for each user
-    topk_relevance_indices = torch.topk(relevance_score_dense, K, dim=1).indices.cpu()
+        interactions_t_chunk = torch.sparse_coo_tensor(i_chunk, v_chunk, (len(chunk_user_ids), n_items)).to(device)
+        
+        # Mask out training user-item interactions
+        relevance_score_chunk = relevance_score_chunk * (1 - interactions_t_chunk.to_dense())
+        
+        # Compute top K items for each user in this chunk
+        topk_indices_chunk = torch.topk(relevance_score_chunk, K, dim=1).indices.cpu()
+        topk_relevance_indices.append(topk_indices_chunk)
+    
+    # Combine top K indices from all chunks
+    topk_relevance_indices = torch.cat(topk_relevance_indices, dim=0)
 
     topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices.numpy(), columns=['top_indx_' + str(x + 1) for x in range(K)])
     topk_relevance_indices_df['user_ID'] = topk_relevance_indices_df.index
