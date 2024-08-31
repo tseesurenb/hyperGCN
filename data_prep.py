@@ -33,13 +33,14 @@ def get_edge_index(sparse_matrix):
     
     return edge_index, data
 
-def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_k=20, i_sim_top_k=20, self_sim=False):
+def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_k=20, i_sim_top_k=20, self_sim=False, verbose=-1):
     # Create user-item matrix
     #ddf = dd.from_pandas(df, npartitions=10)
     #user_item_matrix = ddf.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0).compute()
     #user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0)
     
-    print('Creating user-item matrix...')
+    if verbose > 0:
+        print('Creating user-item matrix...')
     # Convert to NumPy arrays
     user_ids = df['user_id'].to_numpy()
     item_ids = df['item_id'].to_numpy()
@@ -73,7 +74,8 @@ def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_
         hstack([coo_matrix((num_items, num_users)), item_item_sim_matrix])
     ])
 
-    print('User-item and item-item adjacency matrices created.')
+    if verbose > 0:
+        print('User-item and item-item adjacency matrices created.')
     
     #return combined_adjacency_df
     return combined_adjacency
@@ -83,6 +85,7 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
     
     user_df = None
     item_df = None
+    df_selected = None
     ratings_df = None
     rating_stat = None
         
@@ -91,6 +94,9 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
         ratings_path = f'data/{dataset}/u.data'
         movies_path = f'data/{dataset}/u.item'
         users_path = f'data/{dataset}/u.user'
+        
+        print(f'Loading data for {dataset} from {ratings_path} ...')
+        
         
         # Load the entire ratings dataframe into memory
         df_selected = pd.read_csv(ratings_path, sep='\t', names=["user_id", "item_id", "rating", "timestamp"])
@@ -186,10 +192,10 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
 
         # Select and rename the columns to match the desired format
         df = df[['user_id', 'book_id', 'rating', 'time']]
-        df = df.rename(columns={'user_id': 'user_id', 'book_id': 'item_id', 'time': 'timestamp'})
+        df_selected = df.rename(columns={'user_id': 'user_id', 'book_id': 'item_id', 'time': 'timestamp'})
         
         # Convert the timestamp column to Unix timestamps
-        df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
+        df_selected['timestamp'] = pd.to_datetime(df_selected['timestamp']).astype(int) // 10**9
         
     elif dataset == 'douban_music':
         # Read the text file into a DataFrame
@@ -198,10 +204,10 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
 
         # Select and rename the columns to match the desired format
         df = df[['user_id', 'music_id', 'rating', 'time']]
-        df = df.rename(columns={'user_id': 'user_id', 'music_id': 'item_id', 'time': 'timestamp'})
+        df_selected = df.rename(columns={'user_id': 'user_id', 'music_id': 'item_id', 'time': 'timestamp'})
         
         # Convert the timestamp column to Unix timestamps
-        df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
+        df_selected['timestamp'] = pd.to_datetime(df_selected['timestamp']).astype(int) // 10**9
         
     elif dataset == 'douban_movie':
         # Read the text file into a DataFrame
@@ -210,10 +216,10 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
 
         # Select and rename the columns to match the desired format
         df = df[['user_id', 'movie_id', 'rating', 'time']]
-        df = df.rename(columns={'user_id': 'user_id', 'movie_id': 'item_id', 'time': 'timestamp'})
+        df_selected = df.rename(columns={'user_id': 'user_id', 'movie_id': 'item_id', 'time': 'timestamp'})
         
         # Convert the timestamp column to Unix timestamps
-        df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
+        df_selected['timestamp'] = pd.to_datetime(df_selected['timestamp']).astype(int) // 10**9
     
     elif dataset == 'yelp':
         # Read the text file into a DataFrame
@@ -221,10 +227,10 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
         df = pd.read_csv(ratings_path, sep=',')
 
         # Select and rename the columns to match the desired format
-        df = df[['user_id', 'item_id', 'rating', 'timestamp']]
+        df_selected = df[['user_id', 'item_id', 'rating', 'timestamp']]
                 
         # Convert the timestamp column to Unix timestamps
-        df['timestamp'] = pd.to_datetime(df['timestamp']).astype(int) // 10**9
+        df_selected['timestamp'] = pd.to_datetime(df_selected['timestamp']).astype(int) // 10**9
         
     elif dataset == 'gowalla':
         # Paths for ML-1M data files
@@ -242,7 +248,7 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
     else:
         print(f'{br}No data is loaded for dataset: {dataset} !!!{rs}')
 
-    if ratings_df is not None:
+    if df_selected is not None:
     
         #_lbl_user = preprocessing.LabelEncoder()
         #_lbl_movie = preprocessing.LabelEncoder()
@@ -273,7 +279,7 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
         max_timestamp = ratings_df['timestamp'].max()
         max_min_time_distance = round((max_timestamp - min_timestamp) / 86400, 0)
         
-        rating_stat = {'num_users': num_users, 'num_items': num_items, 'mean_rating': mean_rating, 'num_ratings': num_ratings, 'time_distance': max_min_time_distance}
+        rating_stat = {'num_users': num_users, 'num_items': num_items, 'mean_rating': mean_rating, 'num_interactions': num_ratings, 'time_distance': max_min_time_distance}
 
         if verbose > -1:
             print(f'{br}{dataset}{rs} | {rating_stat}')

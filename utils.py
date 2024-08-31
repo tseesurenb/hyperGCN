@@ -33,6 +33,31 @@ bb = "\033[1;34m"
 rs = "\033[0m"
 
 
+def print_metrics(recalls, precs, f1s, ncdg, stats): 
+    
+    print(f" Dataset: {config['dataset']}, num_users: {stats['num_users']}, num_items: {stats['num_items']}, num_interactions: {stats['num_interactions']}")
+    
+    if config['edge'] == 'bi':
+        print(f"   MODEL: {br}{config['model']}{rs} | EDGE TYPE: {br}{config['edge']}{rs} | #LAYERS: {br}{config['layers']}{rs} | BATCH_SIZE: {br}{config['batch_size']}{rs} | DECAY: {br}{config['decay']}{rs} | EPOCHS: {br}{config['epochs']}{rs}")
+    else:
+        print(f"   MODEL: {br}{config['model']}{rs} | EDGE TYPE: {br}{config['edge']}{rs} | #LAYERS: {br}{config['layers']}{rs} | SIM (mode-{config['weight_mode']}, self-{config['self_sim']}): {br}u-{config['u_sim']}(topK {config['u_sim_top_k']}), i-{config['i_sim']}(topK {config['i_sim_top_k']}){rs} | BATCH_SIZE: {br}{config['batch_size']}{rs} | DECAY: {br}{config['decay']}{rs} | EPOCHS: {br}{config['epochs']}{rs}")
+
+    metrics = [("Recall", recalls), 
+           ("Prec", precs), 
+           ("F1 score", f1s), 
+           ("NDCG", ncdg)]
+
+    for name, metric in metrics:
+        values_str = ', '.join([f"{x:.4f}" for x in metric[:5]])
+        mean_str = f"{round(np.mean(metric), 4):.4f}"
+        std_str = f"{round(np.std(metric), 4):.4f}"
+        
+        # Apply formatting with bb and rs if necessary
+        if name in ["F1 score", "NDCG"]:
+            mean_str = f"{bb}{mean_str}{rs}"
+        
+        print(f"{name:>8}: {values_str} | {mean_str}, {std_str}")
+        
 def compute_bpr_loss(users, users_emb, pos_emb, neg_emb, user_emb0,  pos_emb0, neg_emb0):
     # compute loss from initial embeddings, used for regulization
             
@@ -50,7 +75,7 @@ def compute_bpr_loss(users, users_emb, pos_emb, neg_emb, user_emb0,  pos_emb0, n
         
     return bpr_loss, reg_loss
 
-def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
+def get_metrics_new(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
     test_user_ids = torch.LongTensor(test_data['user_id'].unique()).to(device)
 
     # Compute the score of all user-item pairs in chunks to avoid large memory allocation
@@ -114,16 +139,66 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, te
     return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
 
 
-def get_metrics_old(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
-    test_user_ids = torch.LongTensor(test_data['user_id_idx'].unique())
+def get_metrics_orig(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_data, K, device):
+    test_user_ids = torch.LongTensor(test_data['user_id'].unique())
+    # compute the score of all user-item pairs
+    relevance_score = torch.matmul(user_Embed_wts, torch.transpose(item_Embed_wts,0, 1))
+
+    # create dense tensor of all user-item interactions
+    i = torch.stack((
+        torch.LongTensor(train_df['user_id'].values),
+        torch.LongTensor(train_df['item_id'].values)
+    ))
+    v = torch.ones((len(train_df)), dtype=torch.float64)
+    interactions_t = torch.sparse.FloatTensor(i, v, (n_users, n_items))\
+        .to_dense().to(device)
+    
+    # mask out training user-item interactions from metric computation
+    relevance_score = torch.mul(relevance_score, (1 - interactions_t))
+
+    # compute top scoring items for each user
+    topk_relevance_indices = torch.topk(relevance_score, K).indices
+    topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices.cpu().numpy(),columns =['top_indx_'+str(x+1) for x in range(K)])
+    topk_relevance_indices_df['user_ID'] = topk_relevance_indices_df.index
+    topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_'+str(x+1) for x in range(K)]].values.tolist()
+    topk_relevance_indices_df = topk_relevance_indices_df[['user_ID','top_rlvnt_itm']]
+
+    # measure overlap between recommended (top-scoring) and held-out user-item 
+    # interactions
+    test_interacted_items = test_data.groupby('user_id')['item_id'].apply(list).reset_index()
+    metrics_df = pd.merge(test_interacted_items,topk_relevance_indices_df, how= 'left', left_on = 'user_id',right_on = ['user_ID'])
+    metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
+
+    metrics_df['recall'] = metrics_df.apply(lambda x : len(x['intrsctn_itm'])/len(x['item_id']), axis = 1) 
+    metrics_df['precision'] = metrics_df.apply(lambda x : len(x['intrsctn_itm'])/K, axis = 1)
+  
+    # Calculate nDCG
+    def dcg_at_k(r, k):
+        r = np.asfarray(r)[:k]
+        if r.size:
+            return np.sum(r / np.log2(np.arange(2, r.size + 2)))
+        return 0.0
+
+    def ndcg_at_k(relevance_scores, k):
+        dcg_max = dcg_at_k(sorted(relevance_scores, reverse=True), k)
+        if not dcg_max:
+            return 0.0
+        return dcg_at_k(relevance_scores, k) / dcg_max
+
+    metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
+
+    return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
+        
+def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data, test_data, K, device):
+    test_user_ids = torch.LongTensor(test_data['user_id'].unique())
     
     # Compute the score of all user-item pairs, including the base embeddings
     relevance_score = torch.matmul(user_Embed_wts, torch.transpose(item_Embed_wts, 0, 1))
         
     # create dense tensor of all user-item interactions
     i = torch.stack((
-        torch.LongTensor(train_data['user_id_idx'].values),
-        torch.LongTensor(train_data['item_id_idx'].values)
+        torch.LongTensor(train_data['user_id'].values),
+        torch.LongTensor(train_data['item_id'].values)
     ))
     v = torch.ones((len(train_data)), dtype=torch.float32)
     
@@ -150,11 +225,11 @@ def get_metrics_old(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data
 
     # measure overlap between recommended (top-scoring) and held-out user-item 
     # interactions
-    test_interacted_items = test_data.groupby('user_id_idx')['item_id_idx'].apply(list).reset_index()
-    metrics_df = pd.merge(test_interacted_items,topk_relevance_indices_df, how= 'left', left_on = 'user_id_idx',right_on = ['user_ID'])
-    metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id_idx, metrics_df.top_rlvnt_itm)]
+    test_interacted_items = test_data.groupby('user_id')['item_id'].apply(list).reset_index()
+    metrics_df = pd.merge(test_interacted_items,topk_relevance_indices_df, how= 'left', left_on = 'user_id',right_on = ['user_ID'])
+    metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
 
-    metrics_df['recall'] = metrics_df.apply(lambda x : len(x['intrsctn_itm'])/len(x['item_id_idx']), axis = 1) 
+    metrics_df['recall'] = metrics_df.apply(lambda x : len(x['intrsctn_itm'])/len(x['item_id']), axis = 1) 
     metrics_df['precision'] = metrics_df.apply(lambda x : len(x['intrsctn_itm'])/K, axis = 1)
     
     # Calculate nDCG
@@ -170,11 +245,43 @@ def get_metrics_old(user_Embed_wts, item_Embed_wts, n_users, n_items, train_data
             return 0.0
         return dcg_at_k(relevance_scores, k) / dcg_max
 
-    metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id_idx'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
+    metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
 
 
     return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
 
+def batch_data_loader_by_adj_list(adj_list, batch_size, n_usr, n_itm, device):
+
+    indices = np.arange(n_usr)
+    
+    if n_usr < batch_size:
+        users = np.random.choice(indices, batch_size, replace=True)
+    else:
+        users = np.random.choice(indices, batch_size, replace=False)
+        
+    users.sort()
+    users_df = pd.DataFrame(users,columns = ['users'])
+    
+    # Efficiently filter the DataFrame using boolean indexing
+    #items_df = adj_list[adj_list['user_id'].isin(users)]
+    items_df = pd.merge(adj_list, users_df, how = 'right', left_on = 'user_id', right_on = 'users')
+    
+    # Efficient positive and negative item sampling
+    pos_items = np.array([np.random.choice(pos) for pos in items_df['pos_items'].to_numpy()])
+    neg_items = np.array([np.random.choice(neg) for neg in items_df['neg_items'].to_numpy()])
+     
+    return (
+        torch.LongTensor(users).to(device), 
+        torch.LongTensor(pos_items).to(device) + n_usr,
+        torch.LongTensor(neg_items).to(device) + n_usr
+    )
+    
+    #return (
+    #    torch.LongTensor(list(users)).to(device), 
+    #    torch.LongTensor(list(pos_items)).to(device) + n_usr,
+    #    torch.LongTensor(list(neg_items)).to(device) + n_usr
+    #)
+    
 def batch_data_loader(data, batch_size, n_usr, n_itm, device):
 
     def sample_neg(x):
@@ -186,16 +293,16 @@ def batch_data_loader(data, batch_size, n_usr, n_itm, device):
     interacted_items_df = data.groupby('user_id')['item_id'].apply(list).reset_index()
     indices = [x for x in range(n_usr)]
 
-    #if n_usr < batch_size:
-    #    users = [random.choice(indices) for _ in range(batch_size)]
-    #else:
-    #    users = random.sample(indices, batch_size)
-     
-    users = np.random.choice(n_usr, batch_size, replace=n_usr < batch_size)
+    if n_usr < batch_size:
+        users = [random.choice(indices) for _ in range(batch_size)]
+    else:
+        users = random.sample(indices, batch_size)
+        
+    #users = np.random.choice(n_usr, batch_size, replace=n_usr < batch_size)
        
     users.sort()
     users_df = pd.DataFrame(users,columns = ['users'])
-
+    
     interacted_items_df = pd.merge(interacted_items_df, users_df, how = 'right', left_on = 'user_id', right_on = 'users')
     #pos_items = interacted_items_df['item_id'].apply(lambda x : random.choice(x)).values
     #neg_items = interacted_items_df['item_id'].apply(lambda x: sample_neg(x)).values
@@ -212,7 +319,7 @@ def batch_data_loader(data, batch_size, n_usr, n_itm, device):
         torch.LongTensor(list(neg_items)).to(device) + n_usr
     )
     
-def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
+def train_and_eval(epochs, model, optimizer, train_df, train_adj_list, test_df, test_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     losses = {
         'loss': [],
@@ -228,7 +335,7 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
     }
 
     pbar = tqdm(range(epochs), bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', ascii="░❯")
-    pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6}')
+    #pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6}')
     
     for epoch in pbar:
         n_batch = int(len(train_df)/batch_size)
@@ -236,19 +343,18 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
         final_loss_list = []
         bpr_loss_list = []
         reg_loss_list = []
-        
-        #start_time = time.time()
-        
+
         model.train()
         for batch_idx in range(n_batch):
 
             optimizer.zero_grad()
             # Start the timer
             
-            users, pos_items, neg_items = batch_data_loader(train_df, batch_size, n_users, n_items, device)
+            #users, pos_items, neg_items = batch_data_loader(train_df, batch_size, n_users, n_items, device)
+            #batch_data_loader_by_adj_list(adj_list, batch_size, n_usr, n_itm, device):
+            users, pos_items, neg_items = batch_data_loader_by_adj_list(train_adj_list, batch_size, n_users, n_items, device)
             
             users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(users, pos_items, neg_items, train_edge_index, train_edge_attrs)
-            
             
             bpr_loss, reg_loss = compute_bpr_loss(
                 users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
@@ -262,12 +368,9 @@ def train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_us
             final_loss_list.append(final_loss.item())
             bpr_loss_list.append(bpr_loss.item())
             reg_loss_list.append(reg_loss.item())
-
-        # End the timer
-        #end_time = time.time()
-        # Calculate the time taken
-        #execution_time = end_time - start_time
-        #print(f"Execution time (A batch training): {execution_time:.6f} seconds")
+            
+            # Update the description of the outer progress bar with batch information
+            pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_idx:3}')
             
         model.eval()
         with torch.no_grad():
@@ -357,7 +460,22 @@ def plot_results(plot_name, num_exp, epochs, all_bi_losses, all_bi_metrics, all_
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
 
     plt.savefig(plot_name + '_' + timestamp +'.png')  # Save plot to file
-    
+
+def make_adj_list(data):
+    # Set of all items
+    all_items = set(data['item_id'].unique())
+
+    # Group by user_id and create a list of pos_items
+    adj_list = data.groupby('user_id')['item_id'].apply(list).reset_index()
+
+    # Rename the item_id column to pos_items
+    adj_list.rename(columns={'item_id': 'pos_items'}, inplace=True)
+
+    # Add the neg_items column
+    adj_list['neg_items'] = adj_list['pos_items'].apply(lambda pos: list(all_items - set(pos)))
+
+    return adj_list
+
 def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
     train_test_ratio = config['test_ratio']
@@ -367,12 +485,8 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
     if verbose >= 1:
         print("train Size: ", len(train_df), " | test size: ", len (test_df))
-      
-    le_user = pp.LabelEncoder()
-    le_item = pp.LabelEncoder()
-    train_df['user_id_idx'] = le_user.fit_transform(train_df['user_id'].values)
-    train_df['item_id_idx'] = le_item.fit_transform(train_df['item_id'].values)
     
+    # Step 1: Make sure that the user and item pairs in the test set are also in the training set
     train_user_ids = train_df['user_id'].unique()
     train_item_ids = train_df['item_id'].unique()
 
@@ -380,37 +494,40 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
       (test_df['user_id'].isin(train_user_ids)) & \
       (test_df['item_id'].isin(train_item_ids))
     ]
-
-    test_df['user_id_idx'] = le_user.transform(test_df['user_id'].values)
-    test_df['item_id_idx'] = le_item.transform(test_df['item_id'].values)
     
-    N_USERS = train_df['user_id_idx'].nunique()
-    N_ITEMS = train_df['item_id_idx'].nunique()
+    # Step 2: Encode user and item IDs
+    le_user = pp.LabelEncoder()
+    le_item = pp.LabelEncoder()
+    train_df['user_id'] = le_user.fit_transform(train_df['user_id'].values)
+    train_df['item_id'] = le_item.fit_transform(train_df['item_id'].values)
+    
+    test_df['user_id'] = le_user.transform(test_df['user_id'].values)
+    test_df['item_id'] = le_item.transform(test_df['item_id'].values)
+    
+    N_USERS = train_df['user_id'].nunique()
+    N_ITEMS = train_df['item_id'].nunique()
 
     if verbose >= 0:
         print("Number of unique Users : ", N_USERS)
         print("Number of unique Items : ", N_ITEMS)
 
-    u_t = torch.LongTensor(train_df.user_id_idx)
-    i_t = torch.LongTensor(train_df.item_id_idx) + N_USERS
-
-    if verbose >= 1:
-        # Verify the ranges
-        print("max user index: ", u_t.max().item(), "| min user index: ", u_t.min().item())
-        print("max item index: ", i_t.max().item(), "| min item index:", i_t.min().item())
+    train_adj_list = make_adj_list(train_df)
+    test_adj_list = make_adj_list(test_df)
     
+    # Step 3: Create edge index for user-to-item and item-to-user interactions
+    u_t = torch.LongTensor(train_df.user_id)
+    i_t = torch.LongTensor(train_df.item_id) + N_USERS
 
+    # Step 4: Create bi-partite edge index
     bi_train_edge_index = torch.stack((
       torch.cat([u_t, i_t]),
       torch.cat([i_t, u_t])
     )).to(device)
-         
+    
+    # Step 5: Create KNN user-to-user and item-to-item edge index     
     #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
     knn_train_adj_df = create_uuii_adjmat_by_top_k(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
     knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
-    
-    #print(len(knn_train_edge_index[0]))
-    #print(len(train_edge_attrs))
 
     # Convert train_edge_index to a torch tensor if it's a numpy array
     if isinstance(knn_train_edge_index, np.ndarray):
@@ -424,7 +541,6 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
         train_edge_index = knn_train_edge_index
     elif config['edge'] == 'bi':
         train_edge_index = bi_train_edge_index # default to LightGCN
-        print(f"Using bi edges and {len(bi_train_edge_index[0])} edges")
     
     train_edge_index = train_edge_index.clone().detach().to(device)
     train_edge_attrs = torch.tensor(train_edge_attrs).to(device)
@@ -458,8 +574,10 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     losses, metrics = train_and_eval(EPOCHS, 
                                      gcn_model, 
                                      optimizer, 
-                                     train_df, 
-                                     test_df, 
+                                     train_df,
+                                     train_adj_list,
+                                     test_df,
+                                     test_adj_list,
                                      BATCH_SIZE, 
                                      N_USERS, 
                                      N_ITEMS, 
