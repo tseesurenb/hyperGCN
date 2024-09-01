@@ -5,11 +5,14 @@ Pytorch Implementation of hyperGCN: Hyper Graph Convolutional Networks for Colla
 
 import pandas as pd
 import numpy as np
-from scipy.sparse import coo_matrix
 from scipy.stats import pearsonr
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn import preprocessing
 import similarity_func as sim
+from world import config
+
+import os
+from scipy.sparse import coo_matrix, vstack, hstack, save_npz, load_npz
 
 from scipy.sparse import coo_matrix, vstack, hstack
 
@@ -33,12 +36,18 @@ def get_edge_index(sparse_matrix):
     
     return edge_index, data
 
-def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_k=20, i_sim_top_k=20, self_sim=False, verbose=-1):
-    # Create user-item matrix
-    #ddf = dd.from_pandas(df, npartitions=10)
-    #user_item_matrix = ddf.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0).compute()
-    #user_item_matrix = df.pivot_table(index='user_id_idx', columns='item_id_idx', values='rating', fill_value=0)
+def create_uuii_adjmat(df, u_sim='cosine', i_sim='jaccard', u_sim_top_k=20, i_sim_top_k=20, self_sim=False, verbose=-1):
     
+    file_path=f"pre_proc/{config['dataset']}_u_{u_sim}_{u_sim_top_k}_i_{i_sim}_{i_sim_top_k}_self_{self_sim}_uuii_adjmat.npz"
+    
+    # Check if the file exists
+    if os.path.exists(file_path):
+        if verbose > 0:
+            print('Loading adjacency matrix from file...')
+        # Load the sparse matrix from the file
+        combined_adjacency = load_npz(file_path)
+        return combined_adjacency
+
     if verbose > 0:
         print('Creating user-item matrix...')
     # Convert to NumPy arrays
@@ -49,7 +58,7 @@ def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_
     user_item_matrix_coo = coo_matrix((np.ones(len(df)), (user_ids, item_ids)))
     user_item_matrix = user_item_matrix_coo.toarray()
 
-    #user_user_jaccard = jaccard_similarity(user_item_matrix.values, threshold=j_u_thresh)
+    # Calculate user-user similarity matrix
     if u_sim == 'cosine':
         user_user_sim_matrix = sim.cosine_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
     elif u_sim == 'mix':
@@ -57,6 +66,7 @@ def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_
     else:
         user_user_sim_matrix = sim.jaccard_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
     
+    # Calculate item-item similarity matrix
     if i_sim == 'cosine':
         item_item_sim_matrix = sim.cosine_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim)
     elif i_sim == 'mix':
@@ -77,9 +87,10 @@ def create_uuii_adjmat_by_top_k(df, u_sim='consine', i_sim='jaccard', u_sim_top_
     if verbose > 0:
         print('User-item and item-item adjacency matrices created.')
     
-    #return combined_adjacency_df
-    return combined_adjacency
+    # Save the sparse matrix to a file
+    save_npz(file_path, combined_adjacency)
 
+    return combined_adjacency
 
 def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_interaction_threshold = 20, verbose = 0):
     

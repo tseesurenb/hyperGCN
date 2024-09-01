@@ -1,4 +1,5 @@
 import pandas as pd
+import polars as pl
 import numpy as np
 import torch
 import random
@@ -186,83 +187,108 @@ def batch_data_loader_optimized_GPT_3(user_item_dict, neg_items_dict, batch_size
         torch.LongTensor(neg_items).to(device) + n_usr
     )
 
-# Create a larger sample dataset for testing
-n_usr = 30000
-n_itm = 50000
-data_size = 1500000  # Number of interactions
 
-data = pd.DataFrame({
-    'user_id': np.random.randint(0, n_usr, data_size),
-    'item_id': np.random.randint(0, n_itm, data_size)
-})
+def pd_create_adj_list(data):
+    # Set of all items
+    all_items = set(data['item_id'].unique())
+
+    # Group by user_id and create a list of pos_items
+    adj_list = data.groupby('user_id')['item_id'].apply(list).reset_index()
+
+    # Rename the item_id column to pos_items
+    adj_list.rename(columns={'item_id': 'pos_items'}, inplace=True)
+
+    # Add the neg_items column
+    adj_list['neg_items'] = adj_list['pos_items'].apply(lambda pos: list(all_items - set(pos)))
+
+    return adj_list
+
+def pl_create_adj_list(df: pl.DataFrame):
+    # Create a set of all unique items
+    set_items = set(df['item_id'].unique().to_list())
+    
+    all_items = pl.lit(list(set_items))
+    
+    adj_list = df.group_by('user_id', maintain_order=True).agg(pl.col('item_id'))
+
+    # Rename the item_id column to pos_items
+    adj_list = adj_list.rename({"item_id": "pos_items"})
+    
+    # Add the neg_items column
+    adj_list = adj_list.with_columns(
+            neg_items=all_items.list.set_difference(pl.col("pos_items"))
+        )
+        
+    return adj_list
+
+
+def test_pd_funcs(pd_data):
+    pd_adj_list = pd_create_adj_list(pd_data)
+
+    # Test the first batch_data_loader function
+    t1 = time.time()
+    users, pos_items, neg_items = batch_data_loader(pd_data, batch_size, n_usr, n_itm, device)
+    t2 = time.time()
+
+    p_text = "Time taken by original batch_data_loader:"
+    print(f"{p_text:>45}{t2 - t1:.5f}")
+
+    # Test the first batch_data_loader function
+    t1 = time.time()
+    users, pos_items, neg_items = batch_data_loader_optimized(pd_adj_list, batch_size, n_usr, n_itm, device)
+    t2 = time.time()
+
+    p_text = "Time taken by optimized batch_data_loader:"
+    print(f"{p_text:>45}{t2 - t1:.5f}")
+
+
+    indices = [x for x in range(n_usr)]
+    # Test the first batch_data_loader function
+    t1 = time.time()
+    users, pos_items, neg_items = batch_data_loader_faster(pd_adj_list, batch_size, n_usr, n_itm, indices, device)
+    t2 = time.time()
+
+    p_text = "Time taken by faster batch_data_loader:"
+    print(f"{p_text:>45}{t2 - t1:.5f}")
+
+    t1 = time.time()
+    users, pos_items, neg_items = batch_data_loader_GPT(pd_adj_list, batch_size, n_usr, n_itm, device) #(adj_list, batch_size, n_usr, n_itm, device)
+    t2 = time.time()
+
+    p_text = "Time taken by GPT batch_data_loader:"
+    print(f"{p_text:>45}{t2 - t1:.5f}");
+
+
+big = True
+# Create a larger sample dataset for testing
+if big:
+    n_usr = 30000
+    n_itm = 50000
+    data_size = 5000000  # Number of interactions
+else:
+    # Create a larger sample dataset for testing
+    n_usr = 3   
+    n_itm = 5
+    data_size = 15  # Number of interactions
 
 batch_size = 1024  # You can adjust this to a suitable value for your test
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Set of all items
-all_items = set(data['item_id'].unique())
 
-# Group by user_id and create a list of pos_items
-adj_list = data.groupby('user_id')['item_id'].apply(list).reset_index()
+pl = False
 
-# Rename the item_id column to pos_items
-adj_list.rename(columns={'item_id': 'pos_items'}, inplace=True)
+if pl:
+    pl_data = pl.DataFrame({
+        'user_id': np.random.randint(0, n_usr, data_size),
+        'item_id': np.random.randint(0, n_itm, data_size)
+    })
 
-# Add the neg_items column
-adj_list['neg_items'] = adj_list['pos_items'].apply(lambda pos: list(all_items - set(pos)))
+    pl_adj_list = pl_create_adj_list(pl_data)
+    print(pl_adj_list.head())
+else:
+    pd_data = pd.DataFrame({
+        'user_id': np.random.randint(0, n_usr, data_size),
+        'item_id': np.random.randint(0, n_itm, data_size)
+    })
 
-#print(adj_list)
-
-
-# Test the first batch_data_loader function
-t1 = time.time()
-users, pos_items, neg_items = batch_data_loader(data, batch_size, n_usr, n_itm, device)
-t2 = time.time()
-
-p_text = "Time taken by original batch_data_loader:"
-print(f"{p_text:>45}{t2 - t1:.5f}")
-
-# Test the first batch_data_loader function
-t1 = time.time()
-users, pos_items, neg_items = batch_data_loader_optimized(adj_list, batch_size, n_usr, n_itm, device)
-t2 = time.time()
-
-p_text = "Time taken by optimized batch_data_loader:"
-print(f"{p_text:>45}{t2 - t1:.5f}")
-
-
-indices = [x for x in range(n_usr)]
-# Test the first batch_data_loader function
-t1 = time.time()
-users, pos_items, neg_items = batch_data_loader_faster(adj_list, batch_size, n_usr, n_itm, indices, device)
-t2 = time.time()
-
-p_text = "Time taken by faster batch_data_loader:"
-print(f"{p_text:>45}{t2 - t1:.5f}")
-
-t1 = time.time()
-users, pos_items, neg_items = batch_data_loader_GPT(adj_list, batch_size, n_usr, n_itm, device) #(adj_list, batch_size, n_usr, n_itm, device)
-t2 = time.time()
-
-p_text = "Time taken by GPT batch_data_loader:"
-print(f"{p_text:>45}{t2 - t1:.5f}")
-
-
-data2 = np.column_stack([
-    np.random.randint(0, n_usr, data_size),
-    np.random.randint(0, n_itm, data_size)
-])
-
-# Preprocess data
-user_item_dict, neg_items_dict = preprocess_data(data2, n_usr, n_itm)
-
-# Test the optimized batch_data_loader function
-t1 = time.time()
-users, pos_items, neg_items = batch_data_loader_optimized_GPT_3(user_item_dict, neg_items_dict, batch_size, n_usr, n_itm, device)
-t2 = time.time()
-
-p_text = "Time taken by optimized GPT version 3 batch_data_loader:"
-print(f"{p_text:>45}{t2 - t1:.5f}")
-
-
-
+    test_pd_funcs(pd_data)

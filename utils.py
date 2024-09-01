@@ -22,7 +22,7 @@ from model import RecSysGNN
 from sklearn import preprocessing as pp
 from world import config
 import data_prep as dp
-from data_prep import get_edge_index, create_uuii_adjmat_by_top_k
+from data_prep import get_edge_index, create_uuii_adjmat
 import time
 
 # ANSI escape codes for bold and red
@@ -319,6 +319,13 @@ def batch_data_loader(data, batch_size, n_usr, n_itm, device):
         torch.LongTensor(list(neg_items)).to(device) + n_usr
     )
     
+def set_seed(seed):
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.manual_seed(seed)
+    
 def train_and_eval(epochs, model, optimizer, train_df, train_adj_list, test_df, test_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     losses = {
@@ -372,27 +379,28 @@ def train_and_eval(epochs, model, optimizer, train_df, train_adj_list, test_df, 
             # Update the description of the outer progress bar with batch information
             pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_idx:3}')
             
-        model.eval()
-        with torch.no_grad():
-            _, out = model(train_edge_index, train_edge_attrs)
-            final_user_Embed, final_item_Embed = torch.split(out, (n_users, n_items))
-            test_topK_recall,  test_topK_precision, test_ncdg = get_metrics(
-                final_user_Embed, final_item_Embed, n_users, n_items, train_df, test_df, topK, device
-            )
-        
-        f1 = (2 * test_topK_recall * test_topK_precision) / (test_topK_recall + test_topK_precision)
+        if epoch % 10 == 0:
+            model.eval()
+            with torch.no_grad():
+                _, out = model(train_edge_index, train_edge_attrs)
+                final_user_Embed, final_item_Embed = torch.split(out, (n_users, n_items))
+                test_topK_recall,  test_topK_precision, test_ncdg = get_metrics(
+                    final_user_Embed, final_item_Embed, n_users, n_items, train_df, test_df, topK, device
+                )
             
-        losses['loss'].append(round(np.mean(final_loss_list),4))
-        losses['bpr_loss'].append(round(np.mean(bpr_loss_list),4))
-        losses['reg_loss'].append(round(np.mean(reg_loss_list),4))
-        
-        metrics['recall'].append(round(test_topK_recall,4))
-        metrics['precision'].append(round(test_topK_precision,4))
-        metrics['f1'].append(round(f1,4))
-        metrics['ncdg'].append(round(test_ncdg,4))
-        
-        pbar.set_postfix_str(f"prec@20: {br}{test_topK_precision:.4f}{rs} | recall@20: {br}{test_topK_recall:.4f}{rs} | ncdg@20: {br}{test_ncdg:.4f}{rs}")
-        pbar.refresh()
+            f1 = (2 * test_topK_recall * test_topK_precision) / (test_topK_recall + test_topK_precision)
+                
+            losses['loss'].append(round(np.mean(final_loss_list),4))
+            losses['bpr_loss'].append(round(np.mean(bpr_loss_list),4))
+            losses['reg_loss'].append(round(np.mean(reg_loss_list),4))
+            
+            metrics['recall'].append(round(test_topK_recall,4))
+            metrics['precision'].append(round(test_topK_precision,4))
+            metrics['f1'].append(round(f1,4))
+            metrics['ncdg'].append(round(test_ncdg,4))
+            
+            pbar.set_postfix_str(f"prec@20: {br}{test_topK_precision:.4f}{rs} | recall@20: {br}{test_topK_recall:.4f}{rs} | ncdg@20: {br}{test_ncdg:.4f}{rs}")
+            pbar.refresh()
 
     return (losses, metrics)
     
@@ -526,7 +534,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     
     # Step 5: Create KNN user-to-user and item-to-item edge index     
     #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
-    knn_train_adj_df = create_uuii_adjmat_by_top_k(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
+    knn_train_adj_df = create_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
     knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
 
     # Convert train_edge_index to a torch tensor if it's a numpy array
@@ -597,6 +605,9 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
 
     N_USERS = train_df['user_id'].nunique()
     N_ITEMS = train_df['item_id'].nunique()
+    
+    train_adj_list = make_adj_list(train_df)
+    test_adj_list = make_adj_list(test_df)
 
     u_t = torch.LongTensor(train_df.user_id)
     i_t = torch.LongTensor(train_df.item_id) + N_USERS
@@ -612,7 +623,7 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     )).to(device)
          
     #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
-    knn_train_adj_df = create_uuii_adjmat_by_top_k(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
+    knn_train_adj_df = create_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
     knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
     
     #print(len(knn_train_edge_index[0]))
@@ -670,8 +681,10 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     losses, metrics = train_and_eval(EPOCHS, 
                                      lightgcn, 
                                      optimizer, 
-                                     train_df, 
+                                     train_df,
+                                     train_adj_list,
                                      test_df, 
+                                     test_adj_list,
                                      BATCH_SIZE, 
                                      N_USERS, 
                                      N_ITEMS, 
@@ -683,5 +696,6 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
                                      exp_n, 
                                      g_seed)
 
+    #train_and_eval(epochs, model, optimizer, train_df, train_adj_list, test_df, test_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     return losses, metrics
