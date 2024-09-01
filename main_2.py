@@ -8,7 +8,7 @@ import torch
 import torch.backends
 import torch.mps
 import numpy as np
-from utils import run_experiment, plot_results, print_metrics
+from utils import run_experiment_2, plot_results, print_metrics
 import data_prep as dp 
 from world import config
 import pickle
@@ -31,6 +31,8 @@ train_df, test_df = dp.load_data_from_adj_list(dataset = config['dataset'])
 num_users = train_df['user_id'].nunique()
 num_items = train_df['item_id'].nunique()
 num_interactions = len(train_df)
+
+stats = {'num_users': num_users, 'num_items': num_items,  'num_interactions': num_interactions}
 
 #seeds = [7, 12, 89, 91, 41]
 seeds = [7]
