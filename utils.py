@@ -276,12 +276,60 @@ def batch_data_loader_by_adj_list(adj_list, batch_size, n_usr, n_itm, device):
         torch.LongTensor(neg_items).to(device) + n_usr
     )
     
-    #return (
-    #    torch.LongTensor(list(users)).to(device), 
-    #    torch.LongTensor(list(pos_items)).to(device) + n_usr,
-    #    torch.LongTensor(list(neg_items)).to(device) + n_usr
-    #)
+def make_adj_list(data):
+    # Set of all items
+    all_items = set(data['item_id'].unique())
+
+    # Group by user_id and create a list of pos_items
+    adj_list = data.groupby('user_id')['item_id'].apply(list).reset_index()
+
+    # Rename the item_id column to pos_items
+    adj_list.rename(columns={'item_id': 'pos_items'}, inplace=True)
+
+    # Add the neg_items column
+    adj_list['neg_items'] = adj_list['pos_items'].apply(lambda pos: list(all_items - set(pos)))
+
+    # Convert adj_list DataFrame to a dictionary
+    adj_list_dict = adj_list.set_index('user_id')['pos_items'].to_dict()
+
+    return adj_list_dict
+
+def UniformSample_using_interaction_list(adj_list, train_df):
+    """
+    Sampling function based on the existing interaction list.
+    :param adj_list: A dictionary where each key is a user and the value is a list of items the user has interacted with.
+    :param train_df: A DataFrame containing user-item interactions. Columns: ['user', 'item']
+    :return:
+        np.array: A numpy array of triplets [user, positem, negitem]
+    """
+    # Convert train_df to numpy array for efficient processing
+    interactions = train_df.to_numpy()
     
+    S = []
+    
+    #print("interactions: ", interactions)
+    for i, (user, positem, _, _) in enumerate(interactions):
+        
+        # Get the list of positive items for the user
+        
+        posForUser = adj_list[user]
+        
+        if len(posForUser) == 0:
+            continue
+             
+        # Directly use positem from the interaction list
+        while True:
+            # Sample a negative item that the user has not interacted with
+            negitem = np.random.randint(0, len(adj_list))
+            if negitem in posForUser:
+                continue
+            else:
+                break
+        
+        S.append([user, positem, negitem])
+        
+    return np.array(S)
+
 def batch_data_loader(data, batch_size, n_usr, n_itm, device):
 
     def sample_neg(x):
@@ -325,7 +373,19 @@ def set_seed(seed):
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
     torch.manual_seed(seed)
-    
+
+def minibatch(*tensors, **kwargs):
+
+    batch_size = kwargs.get('batch_size')
+
+    if len(tensors) == 1:
+        tensor = tensors[0]
+        for i in range(0, len(tensor), batch_size):
+            yield tensor[i:i + batch_size]
+    else:
+        for i in range(0, len(tensors[0]), batch_size):
+            yield tuple(x[i:i + batch_size] for x in tensors)
+            
 def train_and_eval(epochs, model, optimizer, train_df, train_adj_list, test_df, test_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     losses = {
@@ -341,43 +401,64 @@ def train_and_eval(epochs, model, optimizer, train_df, train_adj_list, test_df, 
         'ncdg': []      
     }
 
+    n_batch = len(train_df) // batch_size + 1
+    
     pbar = tqdm(range(epochs), bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', ascii="░❯")
     #pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6}')
     
     for epoch in pbar:
-        n_batch = int(len(train_df)/batch_size)
     
         final_loss_list = []
         bpr_loss_list = []
         reg_loss_list = []
+        
+        #users, pos_items, neg_items = batch_data_loader_by_adj_list(train_adj_list, batch_size, n_users, n_items, device)
+        S = UniformSample_using_interaction_list(train_adj_list, train_df)
+        
+        users = torch.Tensor(S[:, 0]).long()
+        pos_items = torch.Tensor(S[:, 1]).long()
+        neg_items = torch.Tensor(S[:, 2]).long()
+
+        users = users.to(device)
+        pos_items = pos_items.to(device)
+        neg_items = neg_items.to(device)
 
         model.train()
-        for batch_idx in range(n_batch):
+        for (batch_i,
+         (batch_users,
+          batch_pos,
+          batch_neg)) in enumerate(minibatch(users,
+                                             pos_items,
+                                             neg_items,
+                                             batch_size=batch_size)):
 
-            optimizer.zero_grad()
-            # Start the timer
+                optimizer.zero_grad()
+                
+                #for batch_idx in range(n_batch):
             
-            #users, pos_items, neg_items = batch_data_loader(train_df, batch_size, n_users, n_items, device)
-            #batch_data_loader_by_adj_list(adj_list, batch_size, n_usr, n_itm, device):
-            users, pos_items, neg_items = batch_data_loader_by_adj_list(train_adj_list, batch_size, n_users, n_items, device)
+                    # Start the timer
             
-            users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(users, pos_items, neg_items, train_edge_index, train_edge_attrs)
+                    #users, pos_items, neg_items = batch_data_loader(train_df, batch_size, n_users, n_items, device)
+                    #batch_data_loader_by_adj_list(adj_list, batch_size, n_usr, n_itm, device):
+                    #users, pos_items, neg_items = batch_data_loader_by_adj_list(train_adj_list, batch_size, n_users, n_items, device)
             
-            bpr_loss, reg_loss = compute_bpr_loss(
-                users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
-            )
-            reg_loss = decay * reg_loss
-            final_loss = bpr_loss + reg_loss
-            
-            final_loss.backward()
-            optimizer.step()
+                users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, batch_pos, batch_neg, train_edge_index, train_edge_attrs)
+                
+                bpr_loss, reg_loss = compute_bpr_loss(
+                    batch_users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
+                )
+                reg_loss = decay * reg_loss
+                final_loss = bpr_loss + reg_loss
+                
+                final_loss.backward()
+                optimizer.step()
 
-            final_loss_list.append(final_loss.item())
-            bpr_loss_list.append(bpr_loss.item())
-            reg_loss_list.append(reg_loss.item())
-            
-            # Update the description of the outer progress bar with batch information
-            pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_idx:3}')
+                final_loss_list.append(final_loss.item())
+                bpr_loss_list.append(bpr_loss.item())
+                reg_loss_list.append(reg_loss.item())
+                
+                # Update the description of the outer progress bar with batch information
+                pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3}')
             
         if epoch % 10 == 0:
             model.eval()
@@ -407,8 +488,10 @@ def train_and_eval(epochs, model, optimizer, train_df, train_adj_list, test_df, 
 def plot_results(plot_name, num_exp, epochs, all_bi_losses, all_bi_metrics, all_knn_losses, all_knn_metrics):
     plt.figure(figsize=(14, 5))  # Adjust figure size as needed
     
+    num_test_epochs = len(all_bi_losses[0]['loss'])
+        
     for i in range(num_exp):
-        epoch_list = [(j + 1) for j in range(epochs)]
+        epoch_list = [(j + 1) for j in range(num_test_epochs)]
         
         plt.subplot(1, 3, 1)
         # BI Losses
@@ -469,20 +552,7 @@ def plot_results(plot_name, num_exp, epochs, all_bi_losses, all_bi_metrics, all_
 
     plt.savefig(plot_name + '_' + timestamp +'.png')  # Save plot to file
 
-def make_adj_list(data):
-    # Set of all items
-    all_items = set(data['item_id'].unique())
 
-    # Group by user_id and create a list of pos_items
-    adj_list = data.groupby('user_id')['item_id'].apply(list).reset_index()
-
-    # Rename the item_id column to pos_items
-    adj_list.rename(columns={'item_id': 'pos_items'}, inplace=True)
-
-    # Add the neg_items column
-    adj_list['neg_items'] = adj_list['pos_items'].apply(lambda pos: list(all_items - set(pos)))
-
-    return adj_list
 
 def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
