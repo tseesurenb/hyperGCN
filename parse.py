@@ -38,5 +38,7 @@ def parse_args():
     parser.add_argument('--i_sim_top_k', type=int, default=20)
     parser.add_argument('--self_sim', type=bool, default=False)
     parser.add_argument('--weight_mode', type=str, default='exp')
+    parser.add_argument('--shuffle', type=bool, default=False)
+
     
     return parser.parse_args()

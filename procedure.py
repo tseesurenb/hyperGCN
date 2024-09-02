@@ -86,11 +86,8 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
         pos_items = pos_items.to(device)
         neg_items = neg_items.to(device)
         
-        #print(f"\nusers: {users[0]} | pos_items: {pos_items[0]} | neg_items: {neg_items[0]}")
-        #print(f"\nusers: {users[5]} | pos_items: {pos_items[5]} | neg_items: {neg_items[5]}")
-        #sys.exit()
-        
-        users, pos_items, neg_items = ut.shuffle(users, pos_items, neg_items)
+        if config['shuffle']: 
+            users, pos_items, neg_items = ut.shuffle(users, pos_items, neg_items)
         
         n_batch = len(users) // batch_size + 1
 

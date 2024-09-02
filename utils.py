@@ -329,8 +329,6 @@ def plot_results(plot_name, num_exp, epochs, all_bi_losses, all_bi_metrics, all_
 
     plt.savefig(plot_name + '_' + timestamp +'.png')  # Save plot to file
 
-
-
 def getLabel(test_data, pred_data):
     r = []
     for i in range(len(test_data)):
