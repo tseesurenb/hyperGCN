@@ -8,25 +8,19 @@ import torch
 import torch.backends
 import torch.mps
 import numpy as np
-from utils import run_experiment, plot_results, print_metrics
+from utils import plot_results, print_metrics
+from procedure import run_experiment
 import data_prep as dp 
 from world import config
 import pickle
 import os
-
-# ANSI escape codes for bold and red
-br = "\033[1;31m"
-b = "\033[1m"
-bg = "\033[1;32m"
-bb = "\033[1;34m"
-rs = "\033[0m"
 
 # STEP 1: set the device
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f'Device: {device}')
 
 # STEP 2: Load the data and filter only ratings >= 3
-min_interactions = 50
+min_interactions = 0
 df, u_df, i_df, stats = dp.load_data(dataset = config['dataset'], u_min_interaction_threshold = min_interactions, i_min_interaction_threshold = min_interactions, verbose=config['verbose'])
 df = df[df['rating']>=3] # How many ratings are a 3 or above?
         
@@ -95,7 +89,8 @@ else:
 
 print_metrics(recalls, precs, f1s, ncdg, stats=stats)
     
-print(f'\n------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n')    
+num_hyphens = 100  # Adjust the number of hyphens as needed
+print(f"\n{'-' * num_hyphens}\n")  
 
 config['edge'] = old_edge_type
 config['model'] = old_model_type

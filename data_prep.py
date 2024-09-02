@@ -38,15 +38,15 @@ def get_edge_index(sparse_matrix):
 
 def create_uuii_adjmat(df, u_sim='cosine', i_sim='jaccard', u_sim_top_k=20, i_sim_top_k=20, self_sim=False, verbose=-1):
     
-    file_path=f"pre_proc/{config['dataset']}_u_{u_sim}_{u_sim_top_k}_i_{i_sim}_{i_sim_top_k}_self_{self_sim}_uuii_adjmat.npz"
+    #file_path=f"pre_proc/{config['dataset']}_u_{u_sim}_{u_sim_top_k}_i_{i_sim}_{i_sim_top_k}_self_{self_sim}_uuii_adjmat.npz"
     
     # Check if the file exists
-    if os.path.exists(file_path):
-        if verbose > 0:
-            print('Loading adjacency matrix from file...')
-        # Load the sparse matrix from the file
-        combined_adjacency = load_npz(file_path)
-        return combined_adjacency
+    #if os.path.exists(file_path):
+    #    if verbose > 0:
+    #        print('Loading adjacency matrix from file...')
+    #    # Load the sparse matrix from the file
+    #    combined_adjacency = load_npz(file_path)
+    #    return combined_adjacency
 
     if verbose > 0:
         print('Creating user-item matrix...')
@@ -88,7 +88,7 @@ def create_uuii_adjmat(df, u_sim='cosine', i_sim='jaccard', u_sim_top_k=20, i_si
         print('User-item and item-item adjacency matrices created.')
     
     # Save the sparse matrix to a file
-    save_npz(file_path, combined_adjacency)
+    #save_npz(file_path, combined_adjacency)
 
     return combined_adjacency
 
