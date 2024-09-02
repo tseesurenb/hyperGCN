@@ -237,13 +237,19 @@ def vec_neg_uniform_sample(train_df, neg_adj_list):
     interactions = train_df.to_numpy()
     users = interactions[:, 0].astype(int)
     pos_items = interactions[:, 1].astype(int)
-    neg_items = np.zeros(len(users), dtype=int)
-
-    for i, user in enumerate(users):
-        neg_items[i] = np.random.choice(neg_adj_list[user]['neg_items'])
-
+    
+    # Precompute the length of negative item lists
+    neg_lens = np.array([len(neg_adj_list[user]['neg_items']) for user in users])
+    
+    # Generate random indices for each user
+    random_indices = np.random.randint(0, neg_lens)
+    
+    # Use indices to select negative items
+    neg_items = [neg_adj_list[user]['neg_items'][idx] for user, idx in zip(users, random_indices)]
+    
     S = np.column_stack((users, pos_items, neg_items))
     return S
+
     
 def set_seed(seed):
     np.random.seed(seed)
