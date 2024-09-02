@@ -244,7 +244,7 @@ def vec_neg_uniform_sample(train_df, neg_adj_list):
     # Generate random indices for each user
     random_indices = np.random.randint(0, neg_lens)
     
-    # Use indices to select negative items
+    # Use indices to select negative items for each user
     neg_items = [neg_adj_list[user]['neg_items'][idx] for user, idx in zip(users, random_indices)]
     
     S = np.column_stack((users, pos_items, neg_items))
