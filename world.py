@@ -42,4 +42,3 @@ config['i_sim_top_k'] = args.i_sim_top_k
 config['u_sim_top_k'] = args.u_sim_top_k
 config['self_sim'] = bool(args.self_sim)
 config['weight_mode'] = args.weight_mode
-config['vec_sample'] = bool(args.vec_sample)
