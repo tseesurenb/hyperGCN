@@ -75,13 +75,9 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
         final_loss_list = []
         bpr_loss_list = []
         reg_loss_list = []
-        
-        #users, pos_items, neg_items = batch_data_loader_by_adj_list(train_adj_list, batch_size, n_users, n_items, device)
-        if config['vec_sample']:
-            S = ut.vec_neg_uniform_sample(train_df, train_neg_adj_list)
-        else:
-            S = ut.neg_uniform_sample(train_df, train_neg_adj_list)
-        
+
+        S = ut.neg_uniform_sample(train_df, train_neg_adj_list)
+
         users = torch.Tensor(S[:, 0]).long()
         pos_items = torch.Tensor(S[:, 1]).long()
         neg_items = torch.Tensor(S[:, 2]).long()

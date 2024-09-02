@@ -187,24 +187,7 @@ def get_metrics_modified(user_Embed_wts, item_Embed_wts, n_users, n_items, train
 
     return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
 
-    
-
-
-def neg_uniform_sample(train_df, neg_adj_list):
-    # Convert train_df to numpy array for efficient processing
-    interactions = train_df.to_numpy()
-    S = []
-    for i, (user, pos_item, _, _) in enumerate(interactions):
-        # Sample a negative item that the user has not interacted with
-        neg_item_index = np.random.randint(0, len(neg_adj_list[user]['neg_items']))
-        
-        neg_item = neg_adj_list[user]['neg_items'][neg_item_index]
-        
-        S.append([user, pos_item, neg_item])
-        
-    return np.array(S)
-
-def make_neg_adj_list_old(data, all_items):
+def make_neg_adj_list(data, all_items):
     
     all_items = set(all_items)
     
@@ -221,27 +204,7 @@ def make_neg_adj_list_old(data, all_items):
     
     return neg_adj_list_dict
 
-def make_neg_adj_list(data, all_items):
-    all_items = set(all_items)
-    
-    # Group by user_id and create a list of pos_items
-    adj_list = data.groupby('user_id')['item_id'].apply(list).reset_index()
-    
-    # Rename the item_id column to pos_items
-    adj_list.rename(columns={'item_id': 'pos_items'}, inplace=True)
-    
-    # Add the neg_items column
-    adj_list['neg_items'] = adj_list['pos_items'].apply(lambda pos: list(all_items - set(pos)))
-    
-    # Add the neg_items_len column for precomputed lengths of negative item lists
-    adj_list['neg_items_len'] = adj_list['neg_items'].apply(len)
-    
-    # Convert to dictionary, including lengths
-    neg_adj_list_dict = adj_list.set_index('user_id')[['neg_items', 'neg_items_len']].to_dict(orient='index')
-    
-    return neg_adj_list_dict
-
-def vec_neg_uniform_sample(train_df, neg_adj_list):
+def neg_uniform_sample(train_df, neg_adj_list):
     interactions = train_df.to_numpy()
     users = interactions[:, 0].astype(int)
     pos_items = interactions[:, 1].astype(int)
@@ -257,21 +220,6 @@ def vec_neg_uniform_sample(train_df, neg_adj_list):
     
     S = np.column_stack((users, pos_items, neg_items))
     return S
-
-def vec_neg_uniform_sample_new(train_df, neg_adj_list):
-    interactions = train_df.to_numpy()
-    users = interactions[:, 0].astype(int)
-    pos_items = interactions[:, 1].astype(int)
-    
-    # Generate random indices for each user based on precomputed lengths
-    random_indices = [np.random.randint(0, neg_adj_list[user]['neg_items_len']) for user in users]
-    
-    # Use indices to select negative items for each user
-    neg_items = [neg_adj_list[user]['neg_items'][idx] for user, idx in zip(users, random_indices)]
-    
-    S = np.column_stack((users, pos_items, neg_items))
-    return S
-
 
     
 def set_seed(seed):
@@ -318,9 +266,9 @@ def plot_results(plot_name, num_exp, epochs, all_bi_losses, all_bi_metrics, all_
     plt.figure(figsize=(14, 5))  # Adjust figure size as needed
     
     num_test_epochs = len(all_bi_losses[0]['loss'])
-        
+    epoch_list = [(j + 1) for j in range(num_test_epochs)]
+             
     for i in range(num_exp):
-        epoch_list = [(j + 1) for j in range(num_test_epochs)]
         
         plt.subplot(1, 3, 1)
         # BI Losses
