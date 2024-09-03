@@ -279,7 +279,7 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     print("\nNumber of unique Users & Items: ", N_USERS, N_ITEMS)
     
     train_adj_list = ut.make_neg_adj_list(train_df, all_items)
-    test_adj_list = ut.make_neg_adj_list(test_df, all_items)
+    #test_adj_list = ut.make_neg_adj_list(test_df, all_items)
 
     print("\nDone making adj list")
     
