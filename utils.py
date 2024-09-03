@@ -196,10 +196,6 @@ def get_metrics_lightGCN(user_Embed_wts, item_Embed_wts, n_users, n_items, train
 
     #return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
     
-
-
-
-
     
 def set_seed(seed):
     np.random.seed(seed)

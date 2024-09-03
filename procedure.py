@@ -96,7 +96,11 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
                                      
             optimizer.zero_grad()
             
-            users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, batch_pos, batch_neg, train_edge_index, train_edge_attrs)
+            users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, 
+                                                                                              batch_pos, 
+                                                                                              batch_neg, 
+                                                                                              train_edge_index, 
+                                                                                              train_edge_attrs)
             
             bpr_loss, reg_loss = compute_bpr_loss(
                 batch_users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
@@ -272,9 +276,13 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     all_users = train_df['user_id'].unique()
     all_items = train_df['item_id'].unique()
     
+    print("\nNumber of unique Users & Items: ", N_USERS, N_ITEMS)
+    
     train_adj_list = ut.make_neg_adj_list(train_df, all_items)
     test_adj_list = ut.make_neg_adj_list(test_df, all_items)
 
+    print("\nDone making adj list")
+    
     u_t = torch.LongTensor(train_df.user_id)
     i_t = torch.LongTensor(train_df.item_id) + N_USERS
 
@@ -287,6 +295,8 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
       torch.cat([u_t, i_t]),
       torch.cat([i_t, u_t])
     )).to(device)
+    
+    print("\nDone creating bi edge index")
          
     #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
     knn_train_adj_df = create_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
