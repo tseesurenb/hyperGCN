@@ -90,37 +90,31 @@ def cosine_similarity_by_top_k_new(matrix, top_k=20, self_sim=False, verbose=-1)
     
     return filtered_similarity_matrix.tocsr()
 
-def cosine_similarity_by_top_k_old(matrix, top_k=20, self_sim=False, verbose=-1):
+def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
+    num_rows = matrix.shape[0]
+    filtered_similarity_matrix = np.zeros((num_rows, num_rows))
+
+    binary_matrix = (matrix > 0).astype(int) if not np.issubdtype(matrix.dtype, np.bool_) else matrix
     
-    if verbose > 0:
-        print('Computing cosine similarity by top-k...')
-    
-    binary_matrix = (matrix > 0).astype(int)
-    
-    similarity_matrix = cosine_similarity(binary_matrix)
-    
-    if verbose > 0:
-        print('Cosine similarity computed.')
-    
-    
-    if not self_sim:
-        np.fill_diagonal(similarity_matrix, 0) # Set the diagonal to zero (no self-similarity)
-    else:
-        np.fill_diagonal(similarity_matrix, 1)
-    
-    # Filter top K values for each row
-    top_k_indices = np.argsort(-similarity_matrix, axis=1)[:, :top_k]
-    
-    filtered_similarity_matrix = np.zeros_like(similarity_matrix)
-    
-    if verbose > 0:
-        print('Filtering top-k values...')
-    
-    pbar = tqdm(range(similarity_matrix.shape[0]), bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', ascii="░❯")
+    pbar = tqdm(range(num_rows), 
+                bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', 
+                ascii="░❯", disable=(verbose <= 0))
     pbar.set_description(f'Preparing similarity matrix | Top-K: {top_k}')
-    
+
     for i in pbar:
-        filtered_similarity_matrix[i, top_k_indices[i]] = similarity_matrix[i, top_k_indices[i]]
+        row_vector = binary_matrix[i].reshape(1, -1)  # Take one row at a time
+        row_similarity = cosine_similarity(row_vector, binary_matrix)[0]  # Compute similarity for this row
+        
+        if not self_sim:
+            row_similarity[i] = 0  # Exclude self-similarity if required
+        
+        # Get the top K similar items
+        if top_k < num_rows:
+            top_k_indices = np.argpartition(-row_similarity, top_k)[:top_k]
+        else:
+            top_k_indices = np.argsort(-row_similarity)
+
+        filtered_similarity_matrix[i, top_k_indices] = row_similarity[top_k_indices]
     
     return filtered_similarity_matrix
 
