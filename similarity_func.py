@@ -93,22 +93,23 @@ def cosine_similarity_by_top_k_new(matrix, top_k=20, self_sim=False, verbose=-1)
 from scipy.sparse import lil_matrix
 
 def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
-    num_rows = matrix.shape[0]
     
     if verbose > 0:
         print('Computing cosine similarity by top-k...')
     
-    # Initialize a sparse matrix to store the top-K similarities
-    filtered_similarity_matrix = lil_matrix((num_rows, num_rows))
-    
-    if verbose > 0:
-        print('Filtering top-k values (done preparing filtered sim matrix)...')
+    num_rows = matrix.shape[0]
+    data = []
+    rows = []
+    cols = []
 
+    if verbose > 0:
+        print('Converting to binary matrix...')
+    
     binary_matrix = (matrix > 0).astype(int) if not np.issubdtype(matrix.dtype, np.bool_) else matrix
     
     if verbose > 0:
-        print('Binary matrix created...')
-    
+        print('Computing cosine similarity...')
+        
     pbar = tqdm(range(num_rows), 
                 bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', 
                 ascii="░❯", disable=(verbose <= 0))
@@ -127,11 +128,17 @@ def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
         else:
             top_k_indices = np.argsort(-row_similarity)
 
-        # Store the top K similarities in the sparse matrix
-        filtered_similarity_matrix[i, top_k_indices] = row_similarity[top_k_indices]
+        # Append non-zero entries (i, j, value) to the lists
+        for j in top_k_indices:
+            if row_similarity[j] > 0:  # Avoid storing zero values
+                rows.append(i)
+                cols.append(j)
+                data.append(row_similarity[j])
     
-    # Convert to a more efficient sparse format if needed, e.g., CSR
-    return filtered_similarity_matrix.tocsr()
+    # Convert the lists to a sparse matrix in COO format
+    filtered_similarity_matrix = coo_matrix((data, (rows, cols)), shape=(num_rows, num_rows))
+    
+    return filtered_similarity_matrix.tocsr()  # Convert to CSR for efficient operations
 
 
 def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
