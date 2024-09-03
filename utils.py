@@ -248,7 +248,7 @@ def minibatch(*tensors, batch_size):
         for i in range(0, len(tensors[0]), batch_size):
             yield tuple(x[i:i + batch_size] for x in tensors)
             
-def data_loader(data, batch_size, n_usr, n_itm, device):
+def data_loader(train_df, batch_size, n_usr, n_itm, device):
 
     def sample_neg(x):
         while True:
@@ -256,7 +256,7 @@ def data_loader(data, batch_size, n_usr, n_itm, device):
             if neg_id not in x:
                 return neg_id
 
-    interected_items_df = data.groupby('user_id')['item_id'].apply(list).reset_index()
+    interected_items_df = train_df.groupby('user_id')['item_id'].apply(list).reset_index()
     indices = [x for x in range(n_usr)]
 
     if n_usr < batch_size:
