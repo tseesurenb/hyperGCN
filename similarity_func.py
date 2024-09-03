@@ -95,10 +95,19 @@ from scipy.sparse import lil_matrix
 def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
     num_rows = matrix.shape[0]
     
+    if verbose > 0:
+        print('Computing cosine similarity by top-k...')
+    
     # Initialize a sparse matrix to store the top-K similarities
     filtered_similarity_matrix = lil_matrix((num_rows, num_rows))
+    
+    if verbose > 0:
+        print('Filtering top-k values (done preparing filtered sim matrix)...')
 
     binary_matrix = (matrix > 0).astype(int) if not np.issubdtype(matrix.dtype, np.bool_) else matrix
+    
+    if verbose > 0:
+        print('Binary matrix created...')
     
     pbar = tqdm(range(num_rows), 
                 bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', 
