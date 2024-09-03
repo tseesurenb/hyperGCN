@@ -43,3 +43,4 @@ config['u_sim_top_k'] = args.u_sim_top_k
 config['self_sim'] = bool(args.self_sim)
 config['weight_mode'] = args.weight_mode
 config['shuffle'] = args.shuffle
+config['faster'] = args.faster

@@ -40,9 +40,9 @@ def compute_bpr_loss(users, users_emb, pos_emb, neg_emb, user_emb0,  pos_emb0, n
     # compute loss from initial embeddings, used for regulization
             
     reg_loss = (1 / 2) * (
-        user_emb0.norm(2).pow(2) + 
-        pos_emb0.norm(2).pow(2)  +
-        neg_emb0.norm(2).pow(2)
+        user_emb0.norm().pow(2) + 
+        pos_emb0.norm().pow(2)  +
+        neg_emb0.norm().pow(2)
     ) / float(len(users))
     
     # compute BPR loss from user, positive item, and negative item embeddings
@@ -72,25 +72,96 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
     
     for epoch in pbar:
     
-        final_loss_list = []
-        bpr_loss_list = []
-        reg_loss_list = []
+        final_loss_list, bpr_loss_list, reg_loss_list  = [], [], []
+        
+        n_batch = len(train_df['user_id']) // batch_size + 1
+                            
+        model.train()
+        for batch_i in range(n_batch):
+
+            optimizer.zero_grad()
+
+            batch_users, batch_pos, batch_neg = ut.data_loader(train_df, batch_size, n_users, n_items, device)
+                                     
+            users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, batch_pos, batch_neg, train_edge_index, train_edge_attrs)
+            
+            bpr_loss, reg_loss = compute_bpr_loss(
+                batch_users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
+            )
+            reg_loss = decay * reg_loss
+            final_loss = bpr_loss + reg_loss
+            
+            optimizer.zero_grad()
+            final_loss.backward()
+            optimizer.step()
+
+            final_loss_list.append(final_loss.item())
+            bpr_loss_list.append(bpr_loss.item())
+            reg_loss_list.append(reg_loss.item())
+            
+            # Update the description of the outer progress bar with batch information
+            pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3}')
+            
+        if epoch % 5 == 0:
+            model.eval()
+            with torch.no_grad():
+                _, out = model(train_edge_index, train_edge_attrs)
+                final_user_Embed, final_item_Embed = torch.split(out, (n_users, n_items))
+                test_topK_recall,  test_topK_precision, test_ncdg = ut.get_metrics(
+                    final_user_Embed, final_item_Embed, n_users, n_items, train_df, test_df, topK, device
+                )
+            
+            if test_topK_recall + test_topK_precision != 0:
+                f1 = (2 * test_topK_recall * test_topK_precision) / (test_topK_recall + test_topK_precision)
+            else:
+                f1 = 0.0
+                
+            losses['loss'].append(round(np.mean(final_loss_list),4))
+            losses['bpr_loss'].append(round(np.mean(bpr_loss_list),4))
+            losses['reg_loss'].append(round(np.mean(reg_loss_list),4))
+            
+            metrics['recall'].append(round(test_topK_recall,4))
+            metrics['precision'].append(round(test_topK_precision,4))
+            metrics['f1'].append(round(f1,4))
+            metrics['ncdg'].append(round(test_ncdg,4))
+            
+            pbar.set_postfix_str(f"prec@20: {br}{test_topK_precision:.4f}{rs} | recall@20: {br}{test_topK_recall:.4f}{rs} | ncdg@20: {br}{test_ncdg:.4f}{rs}")
+            pbar.refresh()
+
+    return (losses, metrics)
+
+def train_and_eval_faster(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, test_neg_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
+   
+    losses = {
+        'loss': [],
+        'bpr_loss': [],
+        'reg_loss': []
+    }
+
+    metrics = {
+        'recall': [],
+        'precision': [],
+        'f1': [],
+        'ncdg': []      
+    }
+
+    pbar = tqdm(range(epochs), bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', ascii="░❯")
+    
+    for epoch in pbar:
+    
+        final_loss_list, bpr_loss_list, reg_loss_list  = [], [], []
 
         S = ut.neg_uniform_sample(train_df, train_neg_adj_list)
 
-        users = torch.Tensor(S[:, 0]).long()
-        pos_items = torch.Tensor(S[:, 1]).long()
-        neg_items = torch.Tensor(S[:, 2]).long()
-
-        users = users.to(device)
-        pos_items = pos_items.to(device)
-        neg_items = neg_items.to(device)
+        users = torch.Tensor(S[:, 0]).long().to(device)
+        pos_items = torch.Tensor(S[:, 1]).long().to(device)
+        neg_items = torch.Tensor(S[:, 2]).long().to(device)
         
         if config['shuffle']: 
             users, pos_items, neg_items = ut.shuffle(users, pos_items, neg_items)
         
         n_batch = len(users) // batch_size + 1
-
+                            
         model.train()
         for (batch_i,
          (batch_users,
@@ -99,29 +170,29 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
                                              pos_items,
                                              neg_items,
                                              batch_size=batch_size)):
-
-                
-                            
-                users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, batch_pos, batch_neg, train_edge_index, train_edge_attrs)
-                
-                bpr_loss, reg_loss = compute_bpr_loss(
-                    batch_users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
-                )
-                reg_loss = decay * reg_loss
-                final_loss = bpr_loss + reg_loss
-                
-                optimizer.zero_grad()
-                final_loss.backward()
-                optimizer.step()
-
-                final_loss_list.append(final_loss.item())
-                bpr_loss_list.append(bpr_loss.item())
-                reg_loss_list.append(reg_loss.item())
-                
-                # Update the description of the outer progress bar with batch information
-                pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3}')
+                                     
+            optimizer.zero_grad()
             
-        if epoch % 2 == 0:
+            users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, batch_pos, batch_neg, train_edge_index, train_edge_attrs)
+            
+            bpr_loss, reg_loss = compute_bpr_loss(
+                batch_users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
+            )
+            reg_loss = decay * reg_loss
+            final_loss = bpr_loss + reg_loss
+            
+            
+            final_loss.backward()
+            optimizer.step()
+
+            final_loss_list.append(final_loss.item())
+            bpr_loss_list.append(bpr_loss.item())
+            reg_loss_list.append(reg_loss.item())
+            
+            # Update the description of the outer progress bar with batch information
+            pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3}')
+            
+        if epoch % 5 == 0:
             model.eval()
             with torch.no_grad():
                 _, out = model(train_edge_index, train_edge_attrs)
@@ -248,7 +319,8 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
     optimizer = torch.optim.Adam(gcn_model.parameters(), lr=LR)
 
-    losses, metrics = train_and_eval(EPOCHS, 
+    if config['faster']:
+        losses, metrics = train_and_eval_faster(EPOCHS, 
                                      gcn_model, 
                                      optimizer, 
                                      train_df,
@@ -265,6 +337,24 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
                                      device, 
                                      exp_n, 
                                      g_seed)
+    else:
+        losses, metrics = train_and_eval(EPOCHS, 
+                                        gcn_model, 
+                                        optimizer, 
+                                        train_df,
+                                        train_neg_adj_list,
+                                        test_df,
+                                        train_neg_adj_list,
+                                        BATCH_SIZE, 
+                                        N_USERS, 
+                                        N_ITEMS, 
+                                        train_edge_index, 
+                                        train_edge_attrs, 
+                                        DECAY, 
+                                        K, 
+                                        device, 
+                                        exp_n, 
+                                        g_seed)
 
    
     return losses, metrics
