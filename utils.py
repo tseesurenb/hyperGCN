@@ -196,6 +196,28 @@ def get_metrics_lightGCN(user_Embed_wts, item_Embed_wts, n_users, n_items, train
 
     #return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
     
+
+
+
+
+    
+def set_seed(seed):
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.manual_seed(seed)
+
+def minibatch(*tensors, batch_size):
+
+    if len(tensors) == 1:
+        tensor = tensors[0]
+        for i in range(0, len(tensor), batch_size):
+            yield tensor[i:i + batch_size]
+    else:
+        for i in range(0, len(tensors[0]), batch_size):
+            yield tuple(x[i:i + batch_size] for x in tensors)
+
 def make_neg_adj_list(data, all_items):
     
     all_items = set(all_items)
@@ -229,25 +251,37 @@ def neg_uniform_sample(train_df, neg_adj_list):
     
     S = np.column_stack((users, pos_items, neg_items))
     return S
+          
+def data_loader_new(train_df, neg_adj_list, batch_size, n_usr, n_itm, device):
 
-    
-def set_seed(seed):
-    np.random.seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-    torch.manual_seed(seed)
+    def sample_neg(x):
+        while True:
+            neg_id = random.randint(0, n_itm - 1)
+            if neg_id not in x:
+                return neg_id
 
-def minibatch(*tensors, batch_size):
+    pos_items_df = train_df.groupby('user_id')['item_id'].apply(list).reset_index()
+    indices = [x for x in range(n_usr)]
 
-    if len(tensors) == 1:
-        tensor = tensors[0]
-        for i in range(0, len(tensor), batch_size):
-            yield tensor[i:i + batch_size]
+    if n_usr < batch_size:
+        users = [random.choice(indices) for _ in range(batch_size)]
     else:
-        for i in range(0, len(tensors[0]), batch_size):
-            yield tuple(x[i:i + batch_size] for x in tensors)
-            
+        users = random.sample(indices, batch_size)
+    users.sort()
+    users_df = pd.DataFrame(users,columns = ['users'])
+
+    pos_items_df = pd.merge(pos_items_df, users_df, how = 'right', left_on = 'user_id', right_on = 'users')
+    pos_items = pos_items_df['item_id'].apply(lambda x : random.choice(x)).values
+    
+    
+    neg_items = pos_items_df['item_id'].apply(lambda x: sample_neg(x)).values
+
+    return (
+        torch.LongTensor(list(users)).to(device),
+        torch.LongTensor(list(pos_items)).to(device) + n_usr,
+        torch.LongTensor(list(neg_items)).to(device) + n_usr
+    )
+    
 def data_loader(train_df, batch_size, n_usr, n_itm, device):
 
     def sample_neg(x):
