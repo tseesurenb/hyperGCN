@@ -58,6 +58,9 @@ def create_uuii_adjmat(df, u_sim='cosine', i_sim='jaccard', u_sim_top_k=20, i_si
     user_item_matrix_coo = coo_matrix((np.ones(len(df)), (user_ids, item_ids)))
     user_item_matrix = user_item_matrix_coo.toarray()
 
+    if verbose > 0:
+        print('User-item coo matrix created.')
+        
     # Calculate user-user similarity matrix
     if u_sim == 'cosine':
         user_user_sim_matrix = sim.cosine_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
@@ -65,6 +68,9 @@ def create_uuii_adjmat(df, u_sim='cosine', i_sim='jaccard', u_sim_top_k=20, i_si
         user_user_sim_matrix = sim.fusion_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
     else:
         user_user_sim_matrix = sim.jaccard_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
+        
+    if verbose > 0:
+        print('User-User Sim matrix created.')
     
     # Calculate item-item similarity matrix
     if i_sim == 'cosine':
@@ -73,6 +79,9 @@ def create_uuii_adjmat(df, u_sim='cosine', i_sim='jaccard', u_sim_top_k=20, i_si
         item_item_sim_matrix = sim.fusion_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim)
     else:
         item_item_sim_matrix = sim.jaccard_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim)
+        
+    if verbose > 0:
+        print('Item-Item Sim matrix created.')
     
     # Stack user-user and item-item matrices vertically and horizontally
     num_users = user_user_sim_matrix.shape[0]
