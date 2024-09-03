@@ -90,56 +90,52 @@ def cosine_similarity_by_top_k_new(matrix, top_k=20, self_sim=False, verbose=-1)
     
     return filtered_similarity_matrix.tocsr()
 
-from scipy.sparse import lil_matrix
+import dask.array as da
+from dask_ml.metrics import pairwise_distances_argmin_min
 
-def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
+def cosine_similarity_by_top_k_dask(matrix, top_k=20, self_sim=False, verbose=-1):
     
     if verbose > 0:
         print('Computing cosine similarity by top-k...')
+    # Convert the matrix to a Dask array
+    dask_matrix = da.from_array(matrix, chunks=(1000, matrix.shape[1]))
     
-    num_rows = matrix.shape[0]
+    if verbose > 0:
+        print('Dask array created.')
+            
+    # Initialize lists to hold the results
     data = []
     rows = []
     cols = []
 
-    if verbose > 0:
-        print('Converting to binary matrix...')
-    
-    binary_matrix = (matrix > 0).astype(int) if not np.issubdtype(matrix.dtype, np.bool_) else matrix
+    num_rows = dask_matrix.shape[0]
     
     if verbose > 0:
         print('Computing cosine similarity...')
         
-    pbar = tqdm(range(num_rows), 
-                bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', 
-                ascii="░❯", disable=(verbose <= 0))
-    pbar.set_description(f'Preparing similarity matrix | Top-K: {top_k}')
-
-    for i in pbar:
-        row_vector = binary_matrix[i].reshape(1, -1)  # Take one row at a time
-        row_similarity = cosine_similarity(row_vector, binary_matrix)[0]  # Compute similarity for this row
+    for i in tqdm(range(num_rows)):
+        row_vector = dask_matrix[i].compute().reshape(1, -1)
+        
+        # Compute cosine similarity with the rest of the matrix
+        similarities = da.dot(row_vector, dask_matrix.T).compute()[0]
         
         if not self_sim:
-            row_similarity[i] = 0  # Exclude self-similarity if required
+            similarities[i] = 0
         
-        # Get the top K similar items
-        if top_k < num_rows:
-            top_k_indices = np.argpartition(-row_similarity, top_k)[:top_k]
-        else:
-            top_k_indices = np.argsort(-row_similarity)
-
-        # Append non-zero entries (i, j, value) to the lists
+        # Get top-K similar indices
+        top_k_indices = np.argpartition(-similarities, top_k)[:top_k]
+        
+        # Store the non-zero similarities
         for j in top_k_indices:
-            if row_similarity[j] > 0:  # Avoid storing zero values
+            if similarities[j] > 0:
                 rows.append(i)
                 cols.append(j)
-                data.append(row_similarity[j])
-    
+                data.append(similarities[j])
+
     # Convert the lists to a sparse matrix in COO format
     filtered_similarity_matrix = coo_matrix((data, (rows, cols)), shape=(num_rows, num_rows))
     
-    return filtered_similarity_matrix.tocsr()  # Convert to CSR for efficient operations
-
+    return filtered_similarity_matrix.tocsr()
 
 def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
     if verbose > 0:
