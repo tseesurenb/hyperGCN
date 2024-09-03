@@ -90,7 +90,7 @@ def cosine_similarity_by_top_k_new(matrix, top_k=20, self_sim=False, verbose=-1)
     
     return filtered_similarity_matrix.tocsr()
 
-def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
+def cosine_similarity_by_top_k_old(matrix, top_k=20, self_sim=False, verbose=-1):
     
     if verbose > 0:
         print('Computing cosine similarity by top-k...')
@@ -125,3 +125,38 @@ def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
     return filtered_similarity_matrix
 
 
+def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
+    if verbose > 0:
+        print('Computing cosine similarity by top-k...')
+    
+    # Convert to binary matrix only if necessary
+    binary_matrix = (matrix > 0).astype(int) if not np.issubdtype(matrix.dtype, np.bool_) else matrix
+
+    # Compute cosine similarity
+    similarity_matrix = cosine_similarity(binary_matrix, dense_output=False)
+    
+    if verbose > 0:
+        print('Cosine similarity computed.')
+    
+    # Set self-similarity values
+    if not self_sim:
+        similarity_matrix.setdiag(0)
+    
+    # Efficient top-K filtering
+    if verbose > 0:
+        print('Filtering top-k values...')
+    
+    top_k_indices = np.argpartition(-similarity_matrix.data, top_k - 1, axis=1)[:, :top_k]
+    
+    filtered_similarity_matrix = np.zeros_like(similarity_matrix.toarray())
+
+    pbar = tqdm(range(similarity_matrix.shape[0]), 
+                bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', 
+                ascii="░❯", disable=(verbose <= 0))
+    pbar.set_description(f'Preparing similarity matrix | Top-K: {top_k}')
+    
+    for i in pbar:
+        rows, cols = similarity_matrix[i].nonzero()
+        filtered_similarity_matrix[i, cols[top_k_indices[i]]] = similarity_matrix[i, cols[top_k_indices[i]]]
+    
+    return filtered_similarity_matrix

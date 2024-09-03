@@ -63,22 +63,22 @@ def create_uuii_adjmat(df, u_sim='cosine', i_sim='jaccard', u_sim_top_k=20, i_si
         
     # Calculate user-user similarity matrix
     if u_sim == 'cosine':
-        user_user_sim_matrix = sim.cosine_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
+        user_user_sim_matrix = sim.cosine_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim, verbose=verbose)
     elif u_sim == 'mix':
-        user_user_sim_matrix = sim.fusion_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
+        user_user_sim_matrix = sim.fusion_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim, verbose=verbose)
     else:
-        user_user_sim_matrix = sim.jaccard_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim)
+        user_user_sim_matrix = sim.jaccard_similarity_by_top_k(user_item_matrix, top_k=u_sim_top_k, self_sim=self_sim, verbose=verbose)
         
     if verbose > 0:
         print('User-User Sim matrix created.')
     
     # Calculate item-item similarity matrix
     if i_sim == 'cosine':
-        item_item_sim_matrix = sim.cosine_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim)
+        item_item_sim_matrix = sim.cosine_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim, verbose=verbose)
     elif i_sim == 'mix':
-        item_item_sim_matrix = sim.fusion_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim)
+        item_item_sim_matrix = sim.fusion_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim, verbose=verbose)
     else:
-        item_item_sim_matrix = sim.jaccard_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim)
+        item_item_sim_matrix = sim.jaccard_similarity_by_top_k(user_item_matrix.T, top_k=i_sim_top_k, self_sim=self_sim, verbose=verbose)
         
     if verbose > 0:
         print('Item-Item Sim matrix created.')
