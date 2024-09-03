@@ -20,12 +20,16 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f'Device: {device}')
 
 # STEP 2: Load the data and filter only ratings >= 3
-min_interactions = 0
+if config['dataset'] == 'ml-100k' or config['dataset'] == 'ml-1m':
+    min_interactions = 0
+else:
+    min_interactions = 20
+    
 df, u_df, i_df, stats = dp.load_data(dataset = config['dataset'], u_min_interaction_threshold = min_interactions, i_min_interaction_threshold = min_interactions, verbose=config['verbose'])
 df = df[df['rating']>=3] # How many ratings are a 3 or above?
         
-#seeds = [7, 12, 89, 91, 41]
-seeds = [7, 12]
+seeds = [7, 12, 89, 91, 41]
+#seeds = [7, 12]
 
 old_edge_type = config['edge']
 old_model_type = config['model']

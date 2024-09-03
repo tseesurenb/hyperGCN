@@ -8,7 +8,8 @@ import torch
 import torch.backends
 import torch.mps
 import numpy as np
-from utils import run_experiment_2, plot_results, print_metrics
+from procedure import run_experiment_2
+from utils import plot_results, print_metrics
 import data_prep as dp 
 from world import config
 import pickle

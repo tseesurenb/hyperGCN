@@ -114,7 +114,7 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
             # Update the description of the outer progress bar with batch information
             pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3}')
             
-        if epoch % 5 == 0:
+        if epoch % 3 == 0:
             model.eval()
             with torch.no_grad():
                 _, out = model(train_edge_index, train_edge_attrs)
@@ -269,8 +269,11 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     N_USERS = train_df['user_id'].nunique()
     N_ITEMS = train_df['item_id'].nunique()
     
-    train_adj_list = ut.make_adj_list(train_df)
-    test_adj_list = ut.make_adj_list(test_df)
+    all_users = train_df['user_id'].unique()
+    all_items = train_df['item_id'].unique()
+    
+    train_adj_list = ut.make_neg_adj_list(train_df, all_items)
+    test_adj_list = ut.make_neg_adj_list(test_df, all_items)
 
     u_t = torch.LongTensor(train_df.user_id)
     i_t = torch.LongTensor(train_df.item_id) + N_USERS
@@ -289,9 +292,6 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     knn_train_adj_df = create_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim']) 
     knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
     
-    #print(len(knn_train_edge_index[0]))
-    #print(len(train_edge_attrs))
-
     # Convert train_edge_index to a torch tensor if it's a numpy array
     if isinstance(knn_train_edge_index, np.ndarray):
         knn_train_edge_index = torch.tensor(knn_train_edge_index).to(device)
@@ -311,9 +311,6 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     
     if verbose >= 1:
         print(f"bi edge len: {len(bi_train_edge_index[0])} | knn edge len: {len(knn_train_edge_index[0])} | full edge len: {len(train_edge_index[0])}")
-    
-    #assert train_edge_index.max().item() < (N_USERS + N_ITEMS), "Index out of bounds"
-    #assert train_edge_index.min().item() >= 0, "Negative index found"
     
     LATENT_DIM = config['emb_dim']
     N_LAYERS = config['layers']
