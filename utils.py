@@ -235,7 +235,7 @@ def make_neg_adj_list(data, all_items):
     
     return neg_adj_list_dict
 
-def neg_uniform_sample(train_df, neg_adj_list):
+def neg_uniform_sample(train_df, neg_adj_list, n_usr):
     interactions = train_df.to_numpy()
     users = interactions[:, 0].astype(int)
     pos_items = interactions[:, 1].astype(int)
@@ -249,39 +249,14 @@ def neg_uniform_sample(train_df, neg_adj_list):
     # Use indices to select negative items for each user
     neg_items = [neg_adj_list[user]['neg_items'][idx] for user, idx in zip(users, random_indices)]
     
+    # Add n_usr to each item id in pos_items and neg_items
+    pos_items = [item + n_usr for item in pos_items]
+    neg_items = [item + n_usr for item in neg_items]
+    
     S = np.column_stack((users, pos_items, neg_items))
     return S
           
-def data_loader_new(train_df, neg_adj_list, batch_size, n_usr, n_itm, device):
 
-    def sample_neg(x):
-        while True:
-            neg_id = random.randint(0, n_itm - 1)
-            if neg_id not in x:
-                return neg_id
-
-    pos_items_df = train_df.groupby('user_id')['item_id'].apply(list).reset_index()
-    indices = [x for x in range(n_usr)]
-
-    if n_usr < batch_size:
-        users = [random.choice(indices) for _ in range(batch_size)]
-    else:
-        users = random.sample(indices, batch_size)
-    users.sort()
-    users_df = pd.DataFrame(users,columns = ['users'])
-
-    pos_items_df = pd.merge(pos_items_df, users_df, how = 'right', left_on = 'user_id', right_on = 'users')
-    pos_items = pos_items_df['item_id'].apply(lambda x : random.choice(x)).values
-    
-    
-    neg_items = pos_items_df['item_id'].apply(lambda x: sample_neg(x)).values
-
-    return (
-        torch.LongTensor(list(users)).to(device),
-        torch.LongTensor(list(pos_items)).to(device) + n_usr,
-        torch.LongTensor(list(neg_items)).to(device) + n_usr
-    )
-    
 def data_loader(train_df, batch_size, n_usr, n_itm, device):
 
     def sample_neg(x):
@@ -309,8 +284,6 @@ def data_loader(train_df, batch_size, n_usr, n_itm, device):
         torch.LongTensor(list(pos_items)).to(device) + n_usr,
         torch.LongTensor(list(neg_items)).to(device) + n_usr
     )
-
-
        
 def shuffle(*arrays, **kwargs):
 

@@ -53,84 +53,7 @@ def compute_bpr_loss(users, users_emb, pos_emb, neg_emb, user_emb0,  pos_emb0, n
         
     return bpr_loss, reg_loss
 
-def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, test_neg_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
-   
-    losses = {
-        'loss': [],
-        'bpr_loss': [],
-        'reg_loss': []
-    }
-
-    metrics = {
-        'recall': [],
-        'precision': [],
-        'f1': [],
-        'ncdg': []      
-    }
-
-    pbar = tqdm(range(epochs), bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', ascii="░❯")
-    
-    for epoch in pbar:
-    
-        final_loss_list, bpr_loss_list, reg_loss_list  = [], [], []
-        
-        n_batch = len(train_df['user_id']) // batch_size + 1
-                            
-        model.train()
-        for batch_i in range(n_batch):
-
-            optimizer.zero_grad()
-
-            batch_users, batch_pos, batch_neg = ut.data_loader(train_df, batch_size, n_users, n_items, device)
-                                     
-            users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, batch_pos, batch_neg, train_edge_index, train_edge_attrs)
-            
-            bpr_loss, reg_loss = compute_bpr_loss(
-                batch_users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
-            )
-            reg_loss = decay * reg_loss
-            final_loss = bpr_loss + reg_loss
-            
-            optimizer.zero_grad()
-            final_loss.backward()
-            optimizer.step()
-
-            final_loss_list.append(final_loss.item())
-            bpr_loss_list.append(bpr_loss.item())
-            reg_loss_list.append(reg_loss.item())
-            
-            # Update the description of the outer progress bar with batch information
-            pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3}')
-            
-        if epoch % 5 == 0:
-            model.eval()
-            with torch.no_grad():
-                _, out = model(train_edge_index, train_edge_attrs)
-                final_user_Embed, final_item_Embed = torch.split(out, (n_users, n_items))
-                test_topK_recall,  test_topK_precision, test_ncdg = ut.get_metrics(
-                    final_user_Embed, final_item_Embed, n_users, n_items, train_df, test_df, topK, device
-                )
-            
-            if test_topK_recall + test_topK_precision != 0:
-                f1 = (2 * test_topK_recall * test_topK_precision) / (test_topK_recall + test_topK_precision)
-            else:
-                f1 = 0.0
-                
-            losses['loss'].append(round(np.mean(final_loss_list),4))
-            losses['bpr_loss'].append(round(np.mean(bpr_loss_list),4))
-            losses['reg_loss'].append(round(np.mean(reg_loss_list),4))
-            
-            metrics['recall'].append(round(test_topK_recall,4))
-            metrics['precision'].append(round(test_topK_precision,4))
-            metrics['f1'].append(round(f1,4))
-            metrics['ncdg'].append(round(test_ncdg,4))
-            
-            pbar.set_postfix_str(f"prec@20: {br}{test_topK_precision:.4f}{rs} | recall@20: {br}{test_topK_recall:.4f}{rs} | ncdg@20: {br}{test_ncdg:.4f}{rs}")
-            pbar.refresh()
-
-    return (losses, metrics)
-
-def train_and_eval_faster(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, test_neg_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
+def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, test_neg_adj_list, batch_size, n_users, n_items, n_interactions, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     losses = {
         'loss': [],
@@ -151,7 +74,7 @@ def train_and_eval_faster(epochs, model, optimizer, train_df, train_neg_adj_list
     
         final_loss_list, bpr_loss_list, reg_loss_list  = [], [], []
 
-        S = ut.neg_uniform_sample(train_df, train_neg_adj_list)
+        S = ut.neg_uniform_sample(train_df, train_neg_adj_list, n_users)
 
         users = torch.Tensor(S[:, 0]).long().to(device)
         pos_items = torch.Tensor(S[:, 1]).long().to(device)
@@ -180,7 +103,6 @@ def train_and_eval_faster(epochs, model, optimizer, train_df, train_neg_adj_list
             )
             reg_loss = decay * reg_loss
             final_loss = bpr_loss + reg_loss
-            
             
             final_loss.backward()
             optimizer.step()
@@ -250,6 +172,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     
     N_USERS = train_df['user_id'].nunique()
     N_ITEMS = train_df['item_id'].nunique()
+    N_INTERACTIONS = len(train_df)
     
     # update the ids with new encoded values
     all_users = train_df['user_id'].unique()
@@ -319,42 +242,23 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
     optimizer = torch.optim.Adam(gcn_model.parameters(), lr=LR)
 
-    if config['faster']:
-        losses, metrics = train_and_eval_faster(EPOCHS, 
-                                     gcn_model, 
-                                     optimizer, 
-                                     train_df,
-                                     train_neg_adj_list,
-                                     test_df,
-                                     train_neg_adj_list,
-                                     BATCH_SIZE, 
-                                     N_USERS, 
-                                     N_ITEMS, 
-                                     train_edge_index, 
-                                     train_edge_attrs, 
-                                     DECAY, 
-                                     K, 
-                                     device, 
-                                     exp_n, 
-                                     g_seed)
-    else:
-        losses, metrics = train_and_eval(EPOCHS, 
-                                        gcn_model, 
-                                        optimizer, 
-                                        train_df,
-                                        train_neg_adj_list,
-                                        test_df,
-                                        train_neg_adj_list,
-                                        BATCH_SIZE, 
-                                        N_USERS, 
-                                        N_ITEMS, 
-                                        train_edge_index, 
-                                        train_edge_attrs, 
-                                        DECAY, 
-                                        K, 
-                                        device, 
-                                        exp_n, 
-                                        g_seed)
+    losses, metrics = train_and_eval(EPOCHS, 
+                                    gcn_model, 
+                                    optimizer, 
+                                    train_df,
+                                    train_neg_adj_list,
+                                    test_df,
+                                    train_neg_adj_list,
+                                    BATCH_SIZE, 
+                                    N_USERS, 
+                                    N_ITEMS, 
+                                    train_edge_index, 
+                                    train_edge_attrs, 
+                                    DECAY, 
+                                    K, 
+                                    device, 
+                                    exp_n, 
+                                    g_seed)
 
    
     return losses, metrics
@@ -460,83 +364,79 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     return losses, metrics
 
 
-def test_one_batch(X):
-    sorted_items = X[0].numpy()
-    groundTrue = X[1]
-    r = ut.getLabel(groundTrue, sorted_items)
-    pre, recall, ndcg = [], [], []
-    for k in world.topks:
-        ret = ut.RecallPrecision_ATk(groundTrue, r, k)
-        pre.append(ret['precision'])
-        recall.append(ret['recall'])
-        ndcg.append(ut.NDCGatK_r(groundTrue,r,k))
-    return {'recall':np.array(recall), 
-            'precision':np.array(pre), 
-            'ndcg':np.array(ndcg)}
-    
-    
-def Test(Recmodel, test_df, all_items, epoch, w=None, multicore=0):
-    u_batch_size = 100
-    
-    testDict = ut.make_adj_list(test_df, all_items)
-    
-    # eval mode with no dropout
-    Recmodel = Recmodel.eval()
-    topks = [5, 10, 15, 20]
-    max_K = max(topks)
+def train_and_eval_old(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, test_neg_adj_list, batch_size, n_users, n_items, n_interactions, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
+   
+    losses = {
+        'loss': [],
+        'bpr_loss': [],
+        'reg_loss': []
+    }
 
-    results = {'precision': np.zeros(len(topks)),
-               'recall': np.zeros(len(topks)),
-               'ndcg': np.zeros(len(topks))}
+    metrics = {
+        'recall': [],
+        'precision': [],
+        'f1': [],
+        'ncdg': []      
+    }
 
-    with torch.no_grad():
-        users = list(testDict.keys())
-        try:
-            assert u_batch_size <= len(users) / 10
-        except AssertionError:
-            print(f"test_u_batch_size is too big for this dataset, try a smaller one: {len(users) // 10}")
-        users_list = []
-        rating_list = []
-        groundTrue_list = []
-
-        total_batch = len(users) // u_batch_size + 1
-        allPos = []
+    pbar = tqdm(range(epochs), bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', ascii="░❯")
+    
+    for epoch in pbar:
+    
+        final_loss_list, bpr_loss_list, reg_loss_list  = [], [], []
         
-        for batch_users in ut.minibatch(users, batch_size=u_batch_size):
-            #allPos = dataset.getUserPosItems(batch_users)
-            for u in batch_users:
-                allPos.append(testDict[u])
+        n_batch = len(train_df['user_id']) // batch_size + 1
+                            
+        model.train()
+        for batch_i in range(n_batch):
+
+            optimizer.zero_grad()
+
+            batch_users, batch_pos, batch_neg = ut.data_loader(train_df, batch_size, n_users, n_items, device)
+                                     
+            users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, batch_pos, batch_neg, train_edge_index, train_edge_attrs)
+            
+            bpr_loss, reg_loss = compute_bpr_loss(
+                batch_users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
+            )
+            reg_loss = decay * reg_loss
+            final_loss = bpr_loss + reg_loss
+            
+            optimizer.zero_grad()
+            final_loss.backward()
+            optimizer.step()
+
+            final_loss_list.append(final_loss.item())
+            bpr_loss_list.append(bpr_loss.item())
+            reg_loss_list.append(reg_loss.item())
+            
+            # Update the description of the outer progress bar with batch information
+            pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3}')
+            
+        if epoch % 5 == 0:
+            model.eval()
+            with torch.no_grad():
+                _, out = model(train_edge_index, train_edge_attrs)
+                final_user_Embed, final_item_Embed = torch.split(out, (n_users, n_items))
+                test_topK_recall,  test_topK_precision, test_ncdg = ut.get_metrics(
+                    final_user_Embed, final_item_Embed, n_users, n_items, train_df, test_df, topK, device
+                )
+            
+            if test_topK_recall + test_topK_precision != 0:
+                f1 = (2 * test_topK_recall * test_topK_precision) / (test_topK_recall + test_topK_precision)
+            else:
+                f1 = 0.0
                 
-            groundTrue = [testDict[u] for u in batch_users]
-            batch_users_gpu = torch.Tensor(batch_users).long().to(world.device)
+            losses['loss'].append(round(np.mean(final_loss_list),4))
+            losses['bpr_loss'].append(round(np.mean(bpr_loss_list),4))
+            losses['reg_loss'].append(round(np.mean(reg_loss_list),4))
+            
+            metrics['recall'].append(round(test_topK_recall,4))
+            metrics['precision'].append(round(test_topK_precision,4))
+            metrics['f1'].append(round(f1,4))
+            metrics['ncdg'].append(round(test_ncdg,4))
+            
+            pbar.set_postfix_str(f"prec@20: {br}{test_topK_precision:.4f}{rs} | recall@20: {br}{test_topK_recall:.4f}{rs} | ncdg@20: {br}{test_ncdg:.4f}{rs}")
+            pbar.refresh()
 
-            rating = Recmodel.getUsersRating(batch_users_gpu)
-
-            exclude_index = []
-            exclude_items = []
-            for range_i, items in enumerate(allPos):
-                exclude_index.extend([range_i] * len(items))
-                exclude_items.extend(items)
-            rating[exclude_index, exclude_items] = -(1 << 10)
-            _, rating_K = torch.topk(rating, k=max_K)
-
-            rating_list.append(rating_K.cpu())
-            groundTrue_list.append(groundTrue)
-
-        pre_results = []
-        for rating, groundTrue in zip(rating_list, groundTrue_list):
-            pre_results.append(test_one_batch((rating, groundTrue)))
-
-        scale = float(u_batch_size / len(users))
-        for result in pre_results:
-            results['recall'] += result['recall']
-            results['precision'] += result['precision']
-            results['ndcg'] += result['ndcg']
-
-        results['recall'] /= float(len(users))
-        results['precision'] /= float(len(users))
-        results['ndcg'] /= float(len(users))
-
-        print(results)
-        
-        return results
+    return (losses, metrics)
