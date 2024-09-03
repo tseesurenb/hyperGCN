@@ -53,7 +53,7 @@ def compute_bpr_loss(users, users_emb, pos_emb, neg_emb, user_emb0,  pos_emb0, n
         
     return bpr_loss, reg_loss
 
-def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, test_neg_adj_list, batch_size, n_users, n_items, n_interactions, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
+def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, test_neg_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     losses = {
         'loss': [],
@@ -248,7 +248,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
                                     train_df,
                                     train_neg_adj_list,
                                     test_df,
-                                    train_neg_adj_list,
+                                    test_neg_adj_list,
                                     BATCH_SIZE, 
                                     N_USERS, 
                                     N_ITEMS, 
