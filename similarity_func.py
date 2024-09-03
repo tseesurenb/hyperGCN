@@ -91,11 +91,21 @@ def cosine_similarity_by_top_k_new(matrix, top_k=20, self_sim=False, verbose=-1)
     return filtered_similarity_matrix.tocsr()
 
 def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
+    if verbose > 0:
+        print('Computing cosine similarity by top-k...')
+        
     num_rows = matrix.shape[0]
+    
     filtered_similarity_matrix = np.zeros((num_rows, num_rows))
 
+    if verbose > 0:
+        print('Done initializing similarity matrix.')
+        
     binary_matrix = (matrix > 0).astype(int) if not np.issubdtype(matrix.dtype, np.bool_) else matrix
     
+    if verbose > 0:
+        print('Binary matrix created.')
+        
     pbar = tqdm(range(num_rows), 
                 bar_format='{desc}{bar:30} {percentage:3.0f}% | {elapsed}{postfix}', 
                 ascii="░❯", disable=(verbose <= 0))
