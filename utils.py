@@ -68,11 +68,14 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
     assert n_users == user_Embed_wts.shape[0]
     assert n_items == item_Embed_wts.shape[0]
     
+    user_Embed_wts = user_Embed_wts.to('cpu')
+    item_Embed_wts = item_Embed_wts.to('cpu')
+    
     # compute the score of all user-item pairs
-    #relevance_score = torch.matmul(user_Embed_wts, torch.transpose(item_Embed_wts, 0, 1))
-    user_Embed_wts_sparse = user_Embed_wts.to_sparse()
-    item_Embed_wts_sparse = item_Embed_wts.to_sparse()
-    relevance_score = torch.sparse.matmul(user_Embed_wts_sparse, item_Embed_wts_sparse)
+    relevance_score = torch.matmul(user_Embed_wts, torch.transpose(item_Embed_wts, 0, 1))
+    #user_Embed_wts_sparse = user_Embed_wts.to_sparse()
+    #item_Embed_wts_sparse = item_Embed_wts.to_sparse()
+    #relevance_score = torch.sparse.matmul(user_Embed_wts_sparse, item_Embed_wts_sparse)
 
     #print("Relevance Score:\n", relevance_score)
 
