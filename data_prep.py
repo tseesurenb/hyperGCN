@@ -10,6 +10,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn import preprocessing
 import similarity_func as sim
 from world import config
+import gc
 
 import os
 from scipy.sparse import coo_matrix, vstack, hstack, save_npz, load_npz
@@ -305,6 +306,12 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
             print(f'{br}{dataset}{rs} | {rating_stat}')
         elif verbose == 1:
             print(ratings_df.head())
+            
+        # Clear memory of large DataFrames that are no longer needed
+        del df
+        del df_filtered
+        del df_selected
+        gc.collect()
         
     else:
         print(f'{br}No data is loaded for dataset: {dataset} !!! {rs}')
@@ -325,11 +332,19 @@ def load_data_from_adj_list(dataset = "gowalla_2", verbose = 0):
         df = pd.read_csv(train_path, header=0, sep=' ')
         # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
         train_df = df[['user_id', 'item_id', 'rating', 'timestamp']]
+        
+        # Explicitly delete the dataframe and run garbage collection
+        del df
+        gc.collect()
                       
         # Load the entire ratings dataframe into memory
         df = pd.read_csv(test_path, header=0, sep=' ')
         # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
         test_df = df[['user_id', 'item_id', 'rating', 'timestamp']]
+        
+        # Explicitly delete the dataframe and run garbage collection
+        del df
+        gc.collect()
                               
     else:
         print(f'{br}No data is loaded for dataset: {dataset} !!!{rs}')
