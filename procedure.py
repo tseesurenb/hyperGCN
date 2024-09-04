@@ -53,7 +53,7 @@ def compute_bpr_loss(users, users_emb, pos_emb, neg_emb, user_emb0,  pos_emb0, n
         
     return bpr_loss, reg_loss
 
-def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, test_neg_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
+def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     losses = {
         'loss': [],
@@ -187,7 +187,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
         print("Number of unique Items : ", N_ITEMS)
 
     train_neg_adj_list = ut.make_neg_adj_list(train_df, all_items)
-    test_neg_adj_list = ut.make_neg_adj_list(test_df, all_items)
+    #test_neg_adj_list = ut.make_neg_adj_list(test_df, all_items)
     
     # Step 3: Create edge index for user-to-item and item-to-user interactions
     u_t = torch.LongTensor(train_df.user_id)
@@ -252,7 +252,6 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
                                     train_df,
                                     train_neg_adj_list,
                                     test_df,
-                                    test_neg_adj_list,
                                     BATCH_SIZE, 
                                     N_USERS, 
                                     N_ITEMS, 
@@ -347,14 +346,13 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     if verbose >=1:
         print("Size of Learnable Embedding : ", [x.shape for x in list(lightgcn.parameters())])
 
-    #train_and_eval(epochs, model, optimizer, train_df, test_df, batch_size, n_users, n_items, train_edge_index, decay, K)
+    #train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
     losses, metrics = train_and_eval(EPOCHS, 
                                      lightgcn, 
                                      optimizer, 
                                      train_df,
                                      train_adj_list,
-                                     test_df, 
-                                     test_adj_list,
+                                     test_df,
                                      BATCH_SIZE, 
                                      N_USERS, 
                                      N_ITEMS, 
