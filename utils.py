@@ -60,6 +60,72 @@ def print_metrics(recalls, precs, f1s, ncdg, stats):
         
 
 def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device):
+    # Ensure embeddings are on the GPU
+    user_Embed_wts = user_Embed_wts.to(device)
+    item_Embed_wts = item_Embed_wts.to(device)
+
+    assert n_users == user_Embed_wts.shape[0]
+    assert n_items == item_Embed_wts.shape[0]
+
+    # Move embeddings to CPU for computation
+    user_Embed_wts_cpu = user_Embed_wts.to('cpu')
+    item_Embed_wts_cpu = item_Embed_wts.to('cpu')
+
+    # Compute the score of all user-item pairs
+    relevance_score = torch.matmul(user_Embed_wts_cpu, torch.transpose(item_Embed_wts_cpu, 0, 1))
+    
+    # Prepare the sparse interaction tensor on GPU
+    i = torch.stack((
+        torch.LongTensor(train_df['user_id'].values),
+        torch.LongTensor(train_df['item_id'].values)
+    )).to(device)
+    
+    v = torch.ones((len(train_df)), dtype=torch.float32).to(device)
+    
+    interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items), device=device).to_dense()
+
+    # Move interactions tensor to CPU for further operations
+    interactions_t_cpu = interactions_t.to('cpu')
+    
+    # Mask out training user-item interactions from metric computation
+    relevance_score = relevance_score * (1 - interactions_t_cpu)
+
+    # Compute top scoring items for each user
+    topk_relevance_indices = torch.topk(relevance_score, K).indices
+    topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices.cpu().numpy(), columns=['top_indx_'+str(x+1) for x in range(K)])
+    topk_relevance_indices_df['all_user_id'] = topk_relevance_indices_df.index
+    topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_'+str(x+1) for x in range(K)]].values.tolist()
+    topk_relevance_indices_df = topk_relevance_indices_df[['all_user_id', 'top_rlvnt_itm']]
+
+    # Measure overlap between recommended (top-scoring) and held-out user-item interactions
+    test_interacted_items = test_df.groupby('user_id')['item_id'].apply(list).reset_index()
+    
+    metrics_df = pd.merge(test_interacted_items, topk_relevance_indices_df, how='left', left_on='user_id', right_on='all_user_id')
+    metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
+    
+    metrics_df['recall'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / len(x['item_id']), axis=1)
+    metrics_df['precision'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / K, axis=1)
+
+    # Calculate nDCG
+    def dcg_at_k(r, k):
+        r = np.asfarray(r)[:k]
+        if r.size:
+            return np.sum(r / np.log2(np.arange(2, r.size + 2)))
+        return 0.0
+
+    def ndcg_at_k(relevance_scores, k):
+        dcg_max = dcg_at_k(sorted(relevance_scores, reverse=True), k)
+        if not dcg_max:
+            return 0.0
+        return dcg_at_k(relevance_scores, k) / dcg_max
+
+    metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
+    
+    return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
+
+
+
+def get_metrics_old(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device):
         
     # Ensure embeddings are on the correct device
     user_Embed_wts = user_Embed_wts.to(device)
