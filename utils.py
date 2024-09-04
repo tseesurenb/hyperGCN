@@ -108,7 +108,7 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
 
         metrics_df = pd.merge(test_interacted_items, topk_relevance_indices_df, how='left', left_on='user_id', right_on='all_user_id')
         
-        print("\nMetrics DataFrame with Intersection Items:\n", metrics_df)
+        print(f"\nMetrics DataFrame with Intersection Items{batch_start}/{num_batches}:\n {metrics_df}")
         
         metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
 
