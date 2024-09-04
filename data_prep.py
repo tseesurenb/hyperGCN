@@ -113,6 +113,7 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
     df_selected = None
     ratings_df = None
     rating_stat = None
+    df = None
         
     if dataset == 'ml-100k':
         # Paths for ML-100k data files
@@ -326,6 +327,7 @@ def load_data_from_adj_list(dataset = "gowalla_2", verbose = 0):
     
     train_df = None
     test_df = None
+    df = None
                       
     if dataset == 'gowalla_2':
         # Paths for ML-1M data files
@@ -336,21 +338,48 @@ def load_data_from_adj_list(dataset = "gowalla_2", verbose = 0):
         df = pd.read_csv(train_path, header=0, sep=' ')
         # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
         train_df = df[['user_id', 'item_id', 'rating', 'timestamp']]
-        
-        # Explicitly delete the dataframe and run garbage collection
-        del df
-        gc.collect()
-                      
+                              
         # Load the entire ratings dataframe into memory
         df = pd.read_csv(test_path, header=0, sep=' ')
         # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
         test_df = df[['user_id', 'item_id', 'rating', 'timestamp']]
         
         # Explicitly delete the dataframe and run garbage collection
-        del df
-        gc.collect()
+    
+    elif dataset == 'yelp2018':
+        # Paths for ML-1M data files
+        train_path = f'data/yelp2018/train_coo.txt'
+        test_path = f'data/yelp2018/test_coo.txt'
+        
+        # Load the entire ratings dataframe into memory
+        df = pd.read_csv(train_path, header=0, sep=' ')
+        # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
+        train_df = df[['user_id', 'item_id', 'rating', 'timestamp']]
+                      
+        # Load the entire ratings dataframe into memory
+        df = pd.read_csv(test_path, header=0, sep=' ')
+        # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
+        test_df = df[['user_id', 'item_id', 'rating', 'timestamp']]
+        
+    elif dataset == 'amazon-book':
+        # Paths for ML-1M data files
+        train_path = f'data/amazon-book/train.txt'
+        test_path = f'data/amazon-book/test.txt'
+        
+        # Load the entire ratings dataframe into memory
+        df = pd.read_csv(train_path, header=0, sep=' ')
+        # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
+        train_df = df[['user_id', 'item_id', 'rating', 'timestamp']]
+                      
+        # Load the entire ratings dataframe into memory
+        df = pd.read_csv(test_path, header=0, sep=' ')
+        # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
+        test_df = df[['user_id', 'item_id', 'rating', 'timestamp']]
                               
     else:
         print(f'{br}No data is loaded for dataset: {dataset} !!!{rs}')
+        
+    del df
+    gc.collect()
         
     return train_df, test_df

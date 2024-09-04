@@ -148,90 +148,7 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
     
     return total_recall, total_precision, total_ndcg
 
-# batched version of the metrics
-def get_metrics_issue(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=1000):
-    # Ensure embeddings are on the correct device
-    user_Embed_wts = user_Embed_wts.to(device)
-    item_Embed_wts = item_Embed_wts.to(device)
-
-    assert n_users == user_Embed_wts.shape[0]
-    assert n_items == item_Embed_wts.shape[0]
-
-    # Initialize metrics
-    total_recall = 0.0
-    total_precision = 0.0
-    total_ndcg = 0.0
-    num_batches = (n_users + batch_size - 1) // batch_size
-    counter = 0
-    
-     # Prepare interaction tensor for the batch
-    i = torch.stack((
-        torch.LongTensor(train_df['user_id'].values),
-        torch.LongTensor(train_df['item_id'].values)
-    )).to(device)
-    
-    v = torch.ones(len(train_df), dtype=torch.float32).to(device)
-    interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items), device=device).to_dense()
-
-    for batch_start in range(0, n_users, batch_size):
-        counter = counter + 1
-        batch_end = min(batch_start + batch_size, n_users)
-        batch_user_indices = torch.arange(batch_start, batch_end).to(device)
-
-        # Extract embeddings for the current batch
-        user_Embed_wts_batch = user_Embed_wts[batch_user_indices]
-        relevance_score_batch = torch.matmul(user_Embed_wts_batch, item_Embed_wts.t())
-
-        # Mask out training user-item interactions from metric computation
-        relevance_score_batch = relevance_score_batch * (1 - interactions_t[batch_user_indices])
-
-        # Compute top scoring items for each user
-        topk_relevance_indices = torch.topk(relevance_score_batch, K).indices
-        topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices.cpu().numpy(), columns=['top_indx_'+str(x+1) for x in range(K)])
-        topk_relevance_indices_df['all_user_id'] = topk_relevance_indices_df.index
-        topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_'+str(x+1) for x in range(K)]].values.tolist()
-        topk_relevance_indices_df = topk_relevance_indices_df[['all_user_id', 'top_rlvnt_itm']]
-        
-        
-        # Measure overlap between recommended (top-scoring) and held-out user-item interactions
-        test_interacted_items = test_df[test_df['user_id'].isin(batch_user_indices.cpu().numpy())]
-        test_interacted_items = test_interacted_items.groupby('user_id')['item_id'].apply(list).reset_index()
-
-        metrics_df = pd.merge(test_interacted_items, topk_relevance_indices_df, how='left', left_on='user_id', right_on='all_user_id')
-        
-        print(f"\nMetrics DataFrame with Intersection Items - {batch_start},{counter}/{num_batches}:\n {metrics_df}")
-        
-        metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
-
-        metrics_df['recall'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / len(x['item_id']), axis=1)
-        metrics_df['precision'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / K, axis=1)
-
-        # Calculate nDCG
-        def dcg_at_k(r, k):
-            r = np.asfarray(r)[:k]
-            if r.size:
-                return np.sum(r / np.log2(np.arange(2, r.size + 2)))
-            return 0.0
-
-        def ndcg_at_k(relevance_scores, k):
-            dcg_max = dcg_at_k(sorted(relevance_scores, reverse=True), k)
-            if not dcg_max:
-                return 0.0
-            return dcg_at_k(relevance_scores, k) / dcg_max
-
-        metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
-
-        # Aggregate metrics
-        total_recall += metrics_df['recall'].mean() * len(batch_user_indices)
-        total_precision += metrics_df['precision'].mean() * len(batch_user_indices)
-        total_ndcg += metrics_df['ndcg'].mean() * len(batch_user_indices)
-
-    # Calculate overall metrics
-    num_users = n_users
-    
-    return total_recall / num_users, total_precision / num_users, total_ndcg / num_users
-
-def get_metrics_old(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device):
+def get_metrics_unbatched(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device):
         
     # Ensure embeddings are on the correct device
     user_Embed_wts = user_Embed_wts.to(device)
@@ -286,87 +203,7 @@ def get_metrics_old(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, 
 
     metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
     
-    #print("\nMetrics DataFrame with Intersection Items:\n", metrics_df)
-    
-    #sys.exit()
-    
     return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
-
-
-def get_metrics_lightGCN(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device):
-        
-    # Ensure embeddings are on the correct device
-    user_Embed_wts = user_Embed_wts.to(device)
-    item_Embed_wts = item_Embed_wts.to(device)
-    
-    assert n_users == user_Embed_wts.shape[0]
-    assert n_items == item_Embed_wts.shape[0]
-    
-    # compute the score of all user-item pairs
-    relevance_score = torch.matmul(user_Embed_wts, torch.transpose(item_Embed_wts, 0, 1))
-    #print("Relevance Score:\n", relevance_score)
-
-    i = torch.stack((
-        torch.LongTensor(train_df['user_id'].values),
-        torch.LongTensor(train_df['item_id'].values)
-    )).to(device)
-    
-    v = torch.ones((len(train_df)), dtype=torch.float32).to(device)
-    
-    interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items), device=device).to_dense()
-    
-    # mask out training user-item interactions from metric computation
-    relevance_score = relevance_score * (1 - interactions_t)
-    
-    # compute top scoring items for each user
-    topk_relevance_indices = torch.topk(relevance_score, K).indices
-    topk_relevance_indices_np = topk_relevance_indices.cpu().numpy()
-    
-    #topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices.cpu().numpy(), columns=['top_indx_'+str(x+1) for x in range(K)])
-    #topk_relevance_indices_df['all_user_id'] = topk_relevance_indices_df.index
-    #topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_'+str(x+1) for x in range(K)]].values.tolist()
-    #topk_relevance_indices_df = topk_relevance_indices_df[['user_ID', 'top_rlvnt_itm']]
-    
-    # measure overlap between recommended (top-scoring) and held-out user-item interactions
-    test_interacted_items = test_df.groupby('user_id')['item_id'].apply(list).reset_index()
-    
-    #metrics_df = pd.merge(test_interacted_items, topk_relevance_indices_df, how='left', left_on='user_id', right_on='all_user_id')
-    #metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
-    
-    
-     # Compute precision and recall
-    recall_precision_results = RecallPrecision_ATk(
-        test_interacted_items['item_id'].tolist(),
-        topk_relevance_indices_np,
-        K
-    )
-    
-    ncdg = NDCGatK_r(
-        test_interacted_items['item_id'].tolist(),
-        topk_relevance_indices_np,
-        K
-    )
-    
-    recall = recall_precision_results['recall']
-    precision = recall_precision_results['precision']
-    
-    recall = recall / n_users
-    precision = precision / n_users
-    ncdg = ncdg / n_users
-    
-    #metrics_df['recall'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / len(x['item_id']), axis=1)
-    #metrics_df['precision'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / K, axis=1)
-    
-    #metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
-    
-    #print("Metrics DataFrame with Intersection Items:\n", metrics_df)
-    
-    #sys.exit()
-    
-    return recall, precision, ncdg
-
-    #return metrics_df['recall'].mean(), metrics_df['precision'].mean(), metrics_df['ndcg'].mean()
-    
     
 def set_seed(seed):
     np.random.seed(seed)
@@ -445,36 +282,7 @@ def neg_uniform_sample(train_df, neg_adj_list, n_usr):
     del users, pos_items, neg_items, random_indices, neg_lens
     
     return S
-          
-
-def data_loader(train_df, batch_size, n_usr, n_itm, device):
-
-    def sample_neg(x):
-        while True:
-            neg_id = random.randint(0, n_itm - 1)
-            if neg_id not in x:
-                return neg_id
-
-    interected_items_df = train_df.groupby('user_id')['item_id'].apply(list).reset_index()
-    indices = [x for x in range(n_usr)]
-
-    if n_usr < batch_size:
-        users = [random.choice(indices) for _ in range(batch_size)]
-    else:
-        users = random.sample(indices, batch_size)
-    users.sort()
-    users_df = pd.DataFrame(users,columns = ['users'])
-
-    interected_items_df = pd.merge(interected_items_df, users_df, how = 'right', left_on = 'user_id', right_on = 'users')
-    pos_items = interected_items_df['item_id'].apply(lambda x : random.choice(x)).values
-    neg_items = interected_items_df['item_id'].apply(lambda x: sample_neg(x)).values
-
-    return (
-        torch.LongTensor(list(users)).to(device),
-        torch.LongTensor(list(pos_items)).to(device) + n_usr,
-        torch.LongTensor(list(neg_items)).to(device) + n_usr
-    )
-       
+                 
 def shuffle(*arrays, **kwargs):
 
     require_indices = kwargs.get('indices', False)
@@ -562,13 +370,3 @@ def plot_results(plot_name, num_exp, epochs, all_bi_losses, all_bi_metrics, all_
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
 
     plt.savefig(plot_name + '_' + timestamp +'.png')  # Save plot to file
-
-def getLabel(test_data, pred_data):
-    r = []
-    for i in range(len(test_data)):
-        groundTrue = test_data[i]
-        predictTopK = pred_data[i]
-        pred = list(map(lambda x: x in groundTrue, predictTopK))
-        pred = np.array(pred).astype("float")
-        r.append(pred)
-    return np.array(r).astype('float')

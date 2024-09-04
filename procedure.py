@@ -277,6 +277,13 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     
     print("\nNumber of unique Users & Items: ", N_USERS, N_ITEMS)
     
+    # Step 1: Make sure that the user and item pairs in the test set are also in the training set
+    
+    test_df = test_df[
+      (test_df['user_id'].isin(all_users)) & \
+      (test_df['item_id'].isin(all_items))
+    ]
+    
     train_adj_list = ut.make_neg_adj_list(train_df, all_items)
     #test_adj_list = ut.make_neg_adj_list(test_df, all_items)
 

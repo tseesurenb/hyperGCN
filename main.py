@@ -28,8 +28,8 @@ else:
 df, u_df, i_df, stats = dp.load_data(dataset = config['dataset'], u_min_interaction_threshold = min_interactions, i_min_interaction_threshold = min_interactions, verbose=config['verbose'])
 df = df[df['rating']>=3] # How many ratings are a 3 or above?
         
-seeds = [7, 12, 89, 91, 41]
-#seeds = [7, 12]
+#seeds = [7, 12, 89, 91, 41]
+seeds = [7]
 
 old_edge_type = config['edge']
 old_model_type = config['model']
