@@ -57,9 +57,99 @@ def print_metrics(recalls, precs, f1s, ncdg, stats):
             mean_str = f"{bb}{mean_str}{rs}"
         
         print(f"{name:>8}: {values_str} | {mean_str}, {std_str}")
-        
-# batched version of the metrics
+
 def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=1000):
+    # Ensure embeddings are on the correct device
+    user_Embed_wts = user_Embed_wts.to(device)
+    item_Embed_wts = item_Embed_wts.to(device)
+
+    assert n_users == user_Embed_wts.shape[0]
+    assert n_items == item_Embed_wts.shape[0]
+
+    # Initialize metrics
+    total_recall = 0.0
+    total_precision = 0.0
+    total_ndcg = 0.0
+    num_batches = (n_users + batch_size - 1) // batch_size
+
+    # Prepare interaction tensor for the batch
+    i = torch.stack((
+        torch.LongTensor(train_df['user_id'].values),
+        torch.LongTensor(train_df['item_id'].values)
+    )).to(device)
+    
+    v = torch.ones(len(train_df), dtype=torch.float32).to(device)
+    interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items), device=device).to_dense()
+
+    # Collect results across batches
+    all_topk_relevance_indices = []
+    all_user_ids = []
+
+    for batch_start in range(0, n_users, batch_size):
+        batch_end = min(batch_start + batch_size, n_users)
+        batch_user_indices = torch.arange(batch_start, batch_end).to(device)
+
+        # Extract embeddings for the current batch
+        user_Embed_wts_batch = user_Embed_wts[batch_user_indices]
+        relevance_score_batch = torch.matmul(user_Embed_wts_batch, item_Embed_wts.t())
+
+        # Mask out training user-item interactions from metric computation
+        relevance_score_batch = relevance_score_batch * (1 - interactions_t[batch_user_indices])
+
+        # Compute top scoring items for each user
+        topk_relevance_indices = torch.topk(relevance_score_batch, K).indices
+        topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices.cpu().numpy(), columns=['top_indx_'+str(x+1) for x in range(K)])
+        topk_relevance_indices_df['all_user_id'] = topk_relevance_indices_df.index
+        topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_'+str(x+1) for x in range(K)]].values.tolist()
+        topk_relevance_indices_df = topk_relevance_indices_df[['all_user_id', 'top_rlvnt_itm']]
+
+        # Collect results
+        all_topk_relevance_indices.append(topk_relevance_indices_df)
+        all_user_ids.extend(batch_user_indices.cpu().numpy())
+
+    # Combine results
+    topk_relevance_indices_df_all = pd.concat(all_topk_relevance_indices, ignore_index=True)
+    topk_relevance_indices_df_all['all_user_id'] = all_user_ids
+
+    # Measure overlap between recommended (top-scoring) and held-out user-item interactions
+    test_interacted_items = test_df.groupby('user_id')['item_id'].apply(list).reset_index()
+    
+    metrics_df = pd.merge(test_interacted_items, topk_relevance_indices_df_all, how='left', left_on='user_id', right_on='all_user_id')
+
+    # Handle missing values and ensure that item_id and top_rlvnt_itm are lists
+    metrics_df['item_id'] = metrics_df['item_id'].apply(lambda x: x if isinstance(x, list) else [])
+    metrics_df['top_rlvnt_itm'] = metrics_df['top_rlvnt_itm'].apply(lambda x: x if isinstance(x, list) else [])
+
+    # Calculate intersection items
+    metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
+
+    # Calculate recall, precision, and nDCG
+    metrics_df['recall'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / len(x['item_id']) if len(x['item_id']) > 0 else 0, axis=1)
+    metrics_df['precision'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / K, axis=1)
+
+    def dcg_at_k(r, k):
+        r = np.asfarray(r)[:k]
+        if r.size:
+            return np.sum(r / np.log2(np.arange(2, r.size + 2)))
+        return 0.0
+
+    def ndcg_at_k(relevance_scores, k):
+        dcg_max = dcg_at_k(sorted(relevance_scores, reverse=True), k)
+        if not dcg_max:
+            return 0.0
+        return dcg_at_k(relevance_scores, k) / dcg_max
+
+    metrics_df['ndcg'] = metrics_df.apply(lambda x: ndcg_at_k([1 if i in x['item_id'] else 0 for i in x['top_rlvnt_itm']], K), axis=1)
+
+    # Aggregate metrics
+    total_recall = metrics_df['recall'].mean()
+    total_precision = metrics_df['precision'].mean()
+    total_ndcg = metrics_df['ndcg'].mean()
+    
+    return total_recall, total_precision, total_ndcg
+
+# batched version of the metrics
+def get_metrics_issue(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=1000):
     # Ensure embeddings are on the correct device
     user_Embed_wts = user_Embed_wts.to(device)
     item_Embed_wts = item_Embed_wts.to(device)
@@ -97,25 +187,12 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
 
         # Compute top scoring items for each user
         topk_relevance_indices = torch.topk(relevance_score_batch, K).indices
-        
-        print(f"\nTop K Relevance Indices - {batch_start},{counter}/{num_batches}:\n {topk_relevance_indices}")
-        
         topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices.cpu().numpy(), columns=['top_indx_'+str(x+1) for x in range(K)])
-        
-        print(f"\nTop K Relevance Indices DataFrame - {batch_start},{counter}/{num_batches}:\n {topk_relevance_indices_df}")
-        
         topk_relevance_indices_df['all_user_id'] = topk_relevance_indices_df.index
-        
-        print(f"\nTop K Relevance Indices DataFrame with User ID - {batch_start},{counter}/{num_batches}:\n {topk_relevance_indices_df}")
-        
         topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_'+str(x+1) for x in range(K)]].values.tolist()
-        
-        print(f"\nTop K Relevance Indices DataFrame with Top Relevant Items - {batch_start},{counter}/{num_batches}:\n {topk_relevance_indices_df}")
-        
         topk_relevance_indices_df = topk_relevance_indices_df[['all_user_id', 'top_rlvnt_itm']]
         
-        print(f"\nTop K Relevance Indices DataFrame with User ID and Top Relevant Items - {batch_start},{counter}/{num_batches}:\n {topk_relevance_indices_df}")    
-
+        
         # Measure overlap between recommended (top-scoring) and held-out user-item interactions
         test_interacted_items = test_df[test_df['user_id'].isin(batch_user_indices.cpu().numpy())]
         test_interacted_items = test_interacted_items.groupby('user_id')['item_id'].apply(list).reset_index()
