@@ -28,6 +28,8 @@ def jaccard_similarity_by_top_k(matrix, top_k=20, self_sim=False):
     
     for i in range(similarity_matrix.shape[0]):
         filtered_similarity_matrix[i, top_k_indices[i]] = similarity_matrix[i, top_k_indices[i]]
+        
+    del binary_matrix, intersection, row_sums, union
     
     return filtered_similarity_matrix
 
@@ -91,6 +93,9 @@ def cosine_similarity_by_top_k(matrix, top_k=20, self_sim=False, verbose=-1):
 
     # Construct the final filtered sparse matrix
     filtered_similarity_matrix = coo_matrix((filtered_data, (filtered_rows, filtered_cols)), shape=similarity_matrix.shape)
+    
+    del sparse_matrix, similarity_matrix
+    del filtered_data, filtered_rows, filtered_cols
     
     return filtered_similarity_matrix.tocsr()
 

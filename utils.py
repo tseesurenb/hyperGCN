@@ -229,11 +229,13 @@ def make_neg_adj_list_2(data, all_items):
 
     neg_adj_list_dict = adj_list.set_index('user_id')[['neg_items']].to_dict(orient='index')
     
+    del adj_list
+    
     return neg_adj_list_dict
 
 def make_neg_adj_list(data, all_items):
     all_items_set = set(all_items)
-    
+
     # Group by user_id and aggregate item_ids into lists
     pos_items = data.groupby('user_id')['item_id'].agg(list)
     
@@ -242,6 +244,8 @@ def make_neg_adj_list(data, all_items):
     
     # Create a dictionary with user_id as the key and neg_items as the value
     neg_adj_list_dict = pd.Series(neg_items, index=pos_items.index).to_dict()
+    
+    del pos_items, neg_items, all_items_set
     
     return neg_adj_list_dict
 
@@ -266,6 +270,9 @@ def neg_uniform_sample(train_df, neg_adj_list, n_usr):
     neg_items = [item + n_usr for item in neg_items]
     
     S = np.column_stack((users, pos_items, neg_items))
+    
+    del users, pos_items, neg_items, random_indices, neg_lens
+    
     return S
           
 

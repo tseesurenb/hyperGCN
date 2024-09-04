@@ -35,6 +35,8 @@ def get_edge_index(sparse_matrix):
     # Prepare edge index
     edge_index = np.vstack((row_indices, column_indices))
     
+    del row_indices, column_indices
+    
     return edge_index, data
 
 def create_uuii_adjmat(df, u_sim='cosine', i_sim='jaccard', u_sim_top_k=20, i_sim_top_k=20, self_sim=False, verbose=-1):
@@ -99,6 +101,8 @@ def create_uuii_adjmat(df, u_sim='cosine', i_sim='jaccard', u_sim_top_k=20, i_si
     
     # Save the sparse matrix to a file
     #save_npz(file_path, combined_adjacency)
+    
+    del user_item_matrix_coo, user_item_matrix, user_user_sim_matrix, item_item_sim_matrix
 
     return combined_adjacency
 
