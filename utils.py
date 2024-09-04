@@ -73,6 +73,15 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
     total_ndcg = 0.0
     num_batches = (n_users + batch_size - 1) // batch_size
     counter = 0
+    
+     # Prepare interaction tensor for the batch
+    i = torch.stack((
+        torch.LongTensor(train_df['user_id'].values),
+        torch.LongTensor(train_df['item_id'].values)
+    )).to(device)
+    
+    v = torch.ones(len(train_df), dtype=torch.float32).to(device)
+    interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items), device=device).to_dense()
 
     for batch_start in range(0, n_users, batch_size):
         counter = counter + 1
@@ -82,17 +91,6 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
         # Extract embeddings for the current batch
         user_Embed_wts_batch = user_Embed_wts[batch_user_indices]
         relevance_score_batch = torch.matmul(user_Embed_wts_batch, item_Embed_wts.t())
-
-        # Prepare interaction tensor for the batch
-        i = torch.stack((
-            torch.LongTensor(train_df['user_id'].values),
-            torch.LongTensor(train_df['item_id'].values)
-        )).to(device)
-        
-        v = torch.ones(len(train_df), dtype=torch.float32).to(device)
-        interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items), device=device).to_dense()
-
-        #interactions_t_cpu = interactions_t.to(device)
 
         # Mask out training user-item interactions from metric computation
         relevance_score_batch = relevance_score_batch * (1 - interactions_t[batch_user_indices])
