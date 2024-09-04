@@ -90,7 +90,7 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
         v = torch.ones(len(train_df), dtype=torch.float32).to(device)
         interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items), device=device).to_dense()
 
-        interactions_t_cpu = interactions_t.to('cpu')
+        interactions_t_cpu = interactions_t.to(device)
 
         # Mask out training user-item interactions from metric computation
         relevance_score_batch = relevance_score_batch * (1 - interactions_t_cpu[batch_user_indices])
