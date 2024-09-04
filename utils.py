@@ -97,10 +97,24 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
 
         # Compute top scoring items for each user
         topk_relevance_indices = torch.topk(relevance_score_batch, K).indices
+        
+        print(f"\nTop K Relevance Indices - {batch_start},{counter}/{num_batches}:\n {topk_relevance_indices}")
+        
         topk_relevance_indices_df = pd.DataFrame(topk_relevance_indices.cpu().numpy(), columns=['top_indx_'+str(x+1) for x in range(K)])
+        
+        print(f"\nTop K Relevance Indices DataFrame - {batch_start},{counter}/{num_batches}:\n {topk_relevance_indices_df}")
+        
         topk_relevance_indices_df['all_user_id'] = topk_relevance_indices_df.index
+        
+        print(f"\nTop K Relevance Indices DataFrame with User ID - {batch_start},{counter}/{num_batches}:\n {topk_relevance_indices_df}")
+        
         topk_relevance_indices_df['top_rlvnt_itm'] = topk_relevance_indices_df[['top_indx_'+str(x+1) for x in range(K)]].values.tolist()
+        
+        print(f"\nTop K Relevance Indices DataFrame with Top Relevant Items - {batch_start},{counter}/{num_batches}:\n {topk_relevance_indices_df}")
+        
         topk_relevance_indices_df = topk_relevance_indices_df[['all_user_id', 'top_rlvnt_itm']]
+        
+        print(f"\nTop K Relevance Indices DataFrame with User ID and Top Relevant Items - {batch_start},{counter}/{num_batches}:\n {topk_relevance_indices_df}")    
 
         # Measure overlap between recommended (top-scoring) and held-out user-item interactions
         test_interacted_items = test_df[test_df['user_id'].isin(batch_user_indices.cpu().numpy())]
