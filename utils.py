@@ -72,10 +72,10 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
     total_precision = 0.0
     total_ndcg = 0.0
     num_batches = (n_users + batch_size - 1) // batch_size
-    i = 0
+    counter = 0
 
     for batch_start in range(0, n_users, batch_size):
-        i += 1
+        counter = counter + 1
         batch_end = min(batch_start + batch_size, n_users)
         batch_user_indices = torch.arange(batch_start, batch_end).to(device)
 
@@ -92,10 +92,10 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
         v = torch.ones(len(train_df), dtype=torch.float32).to(device)
         interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items), device=device).to_dense()
 
-        interactions_t_cpu = interactions_t.to(device)
+        #interactions_t_cpu = interactions_t.to(device)
 
         # Mask out training user-item interactions from metric computation
-        relevance_score_batch = relevance_score_batch * (1 - interactions_t_cpu[batch_user_indices])
+        relevance_score_batch = relevance_score_batch * (1 - interactions_t[batch_user_indices])
 
         # Compute top scoring items for each user
         topk_relevance_indices = torch.topk(relevance_score_batch, K).indices
@@ -110,7 +110,7 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
 
         metrics_df = pd.merge(test_interacted_items, topk_relevance_indices_df, how='left', left_on='user_id', right_on='all_user_id')
         
-        print(f"\nMetrics DataFrame with Intersection Items - {batch_start},{i}/{num_batches}:\n {metrics_df}")
+        print(f"\nMetrics DataFrame with Intersection Items - {batch_start},{counter}/{num_batches}:\n {metrics_df}")
         
         metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
 
