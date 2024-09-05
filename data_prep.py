@@ -363,8 +363,8 @@ def load_data_from_adj_list(dataset = "gowalla_2", verbose = 0):
         
     elif dataset == 'amazon-book':
         # Paths for ML-1M data files
-        train_path = f'data/amazon-book/train.txt'
-        test_path = f'data/amazon-book/test.txt'
+        train_path = f'data/amazon-book/train_coo.txt'
+        test_path = f'data/amazon-book/test_coo.txt'
         
         # Load the entire ratings dataframe into memory
         df = pd.read_csv(train_path, header=0, sep=' ')
