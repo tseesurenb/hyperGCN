@@ -59,7 +59,7 @@ def print_metrics(recalls, precs, f1s, ncdg, stats):
         print(f"{name:>8}: {values_str} | {mean_str}, {std_str}")
 
 
-def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=1000):
+def get_metrics_new(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=1000):
     # Ensure embeddings are on the correct device
     user_Embed_wts = user_Embed_wts.to(device)
     item_Embed_wts = item_Embed_wts.to(device)
@@ -171,7 +171,7 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
     return total_recall, total_precision, total_ndcg
 
 
-def get_metrics_3(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=1000):
+def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=1000):
     # Ensure embeddings are on the correct device
     user_Embed_wts = user_Embed_wts.to(device)
     item_Embed_wts = item_Embed_wts.to(device)
