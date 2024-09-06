@@ -118,32 +118,43 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
     # Calculate intersection items
     metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
 
-    # Calculate recall, precision using RecallPrecision_ATk logic
-    right_pred = metrics_df['intrsctn_itm'].apply(len).values
-    recall_n = np.array([len(test_data) for test_data in metrics_df['item_id']])
+    # Calculate recall and precision
+    recalls = []
+    precisions = []
     
-    recall = np.sum(right_pred / recall_n)
-    precision = np.sum(right_pred) / (K * len(metrics_df))
+    for _, row in metrics_df.iterrows():
+        relevant_items = set(row['item_id'])
+        recommended_items = set(row['top_rlvnt_itm'])
+        
+        num_relevant = len(relevant_items)
+        num_recommended = len(recommended_items)
+        num_correct = len(relevant_items.intersection(recommended_items))
+
+        # Recall: Number of correct recommendations / Total number of relevant items
+        recall = num_correct / num_relevant if num_relevant > 0 else 0
+        recalls.append(recall)
+
+        # Precision: Number of correct recommendations / K
+        precision = num_correct / K
+        precisions.append(precision)
+    
+    total_recall = np.mean(recalls)
+    total_precision = np.mean(precisions)
 
     # nDCG calculation
     test_matrix = np.zeros((len(metrics_df), K))
     for i, row in metrics_df.iterrows():
         relevant_items = set(row['item_id'])
         predicted_items = row['top_rlvnt_itm']
-        length = min(K, len(relevant_items))
-        test_matrix[i, :length] = 1
+        for idx, item in enumerate(predicted_items):
+            if item in relevant_items:
+                test_matrix[i, idx] = 1
 
     # Compute IDCG (Ideal DCG)
     idcg = np.sum(test_matrix * 1./np.log2(np.arange(2, K + 2)), axis=1)
     
     # Compute DCG based on predicted relevance
-    dcg_matrix = np.zeros((len(metrics_df), K))
-    for i, row in metrics_df.iterrows():
-        relevant_items = set(row['item_id'])
-        predicted_items = row['top_rlvnt_itm']
-        dcg_matrix[i] = [1 if item in relevant_items else 0 for item in predicted_items]
-    
-    dcg = np.sum(dcg_matrix * (1. / np.log2(np.arange(2, K + 2))), axis=1)
+    dcg = np.sum(test_matrix * (1. / np.log2(np.arange(2, K + 2))), axis=1)
 
     # Handle cases where idcg == 0 to avoid division by zero
     idcg[idcg == 0.] = 1.
@@ -157,7 +168,7 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
     # Aggregate metrics
     total_ndcg = np.mean(ndcg)
     
-    return recall, precision, total_ndcg
+    return total_recall, total_precision, total_ndcg
 
 
 def get_metrics_3(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=1000):
