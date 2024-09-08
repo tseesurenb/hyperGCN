@@ -302,22 +302,17 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
 def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
-    N_USERS = train_df['user_id'].nunique()
-    N_ITEMS = train_df['item_id'].nunique()
+    
+    train_df = filter_by_interactions(train_df, 10)
     
     all_users = train_df['user_id'].unique()
     all_items = train_df['item_id'].unique()
     
-    #print("\nNumber of unique Users & Items: ", N_USERS, N_ITEMS)
+    test_df = test_df[
+      (test_df['user_id'].isin(all_users)) & \
+      (test_df['item_id'].isin(all_items))
+    ]
     
-    # Step 1: Make sure that the user and item pairs in the test set are also in the training set
-    
-    #test_df = test_df[
-    #  (test_df['user_id'].isin(all_users)) & \
-    #  (test_df['item_id'].isin(all_items))
-    #]
-    
-    train_df = filter_by_interactions(train_df, 10)
     
     N_USERS = train_df['user_id'].nunique()
     N_ITEMS = train_df['item_id'].nunique()
