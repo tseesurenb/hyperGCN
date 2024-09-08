@@ -53,6 +53,30 @@ def compute_bpr_loss(users, users_emb, pos_emb, neg_emb, user_emb0,  pos_emb0, n
         
     return bpr_loss, reg_loss
 
+def compute_bpr_loss_base(users, users_emb, pos_emb, neg_emb, users_base_emb, pos_base_emb, neg_base_emb, user_emb0,  pos_emb0, neg_emb0):
+    # compute loss from initial embeddings, used for regulization
+            
+    reg_loss = (1 / 2) * (
+        user_emb0.norm().pow(2) + 
+        pos_emb0.norm().pow(2)  +
+        neg_emb0.norm().pow(2) +
+        users_base_emb.norm().pow(2) +
+        pos_base_emb.norm().pow(2) +
+        neg_base_emb.norm().pow(2)
+    ) / float(len(users))
+    
+    users_emb = users_emb + users_base_emb
+    pos_emb = pos_emb + pos_base_emb
+    neg_emb = neg_emb + neg_base_emb
+    
+    # compute BPR loss from user, positive item, and negative item embeddings
+    pos_scores = torch.mul(users_emb, pos_emb).sum(dim=1)
+    neg_scores = torch.mul(users_emb, neg_emb).sum(dim=1)
+    
+    bpr_loss = torch.mean(F.softplus(neg_scores - pos_scores))
+        
+    return bpr_loss, reg_loss
+
 def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     losses = {
@@ -95,16 +119,28 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
                                              batch_size=batch_size)):
                                      
             optimizer.zero_grad()
+
+            if config['base'] == False:
+                users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, 
+                                                                                                batch_pos, 
+                                                                                                batch_neg, 
+                                                                                                train_edge_index, 
+                                                                                                train_edge_attrs)
+                
+                bpr_loss, reg_loss = compute_bpr_loss(
+                    batch_users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
+                )
+            else:
+                users_emb, pos_emb, neg_emb, users_base_emb, pos_base_emb, neg_base_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, 
+                                                                                                batch_pos, 
+                                                                                                batch_neg, 
+                                                                                                train_edge_index, 
+                                                                                                train_edge_attrs)
+                
+                bpr_loss, reg_loss = compute_bpr_loss_base(
+                    batch_users, users_emb, pos_emb, neg_emb, users_base_emb, pos_base_emb, neg_base_emb, userEmb0,  posEmb0, negEmb0
+                )
             
-            users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0 = model.encode_minibatch(batch_users, 
-                                                                                              batch_pos, 
-                                                                                              batch_neg, 
-                                                                                              train_edge_index, 
-                                                                                              train_edge_attrs)
-            
-            bpr_loss, reg_loss = compute_bpr_loss(
-                batch_users, users_emb, pos_emb, neg_emb, userEmb0,  posEmb0, negEmb0
-            )
             reg_loss = decay * reg_loss
             final_loss = bpr_loss + reg_loss
             
@@ -152,9 +188,6 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     train, test = train_test_split(df.values, test_size=train_test_ratio, random_state=g_seed)
     train_df = pd.DataFrame(train, columns=df.columns)
     test_df = pd.DataFrame(test, columns=df.columns)
-
-    if verbose >= 1:
-        print("train Size: ", len(train_df), " | test size: ", len (test_df))
     
     # Step 1: Make sure that the user and item pairs in the test set are also in the training set
     all_users = train_df['user_id'].unique()
@@ -177,15 +210,14 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     N_USERS = train_df['user_id'].nunique()
     N_ITEMS = train_df['item_id'].nunique()
     N_INTERACTIONS = len(train_df)
+    #N_INTERACTIONS = len(train_df) + len(test_df)
+    
+    print(f"dataset: {br}{config['dataset']} {rs}| seed: {g_seed} | exp: {exp_n} | users: {N_USERS} | items: {N_ITEMS} | interactions: {N_INTERACTIONS}")
     
     # update the ids with new encoded values
     all_users = train_df['user_id'].unique()
     all_items = train_df['item_id'].unique()
-
-    if verbose >= 0:
-        print("Number of unique Users : ", N_USERS)
-        print("Number of unique Items : ", N_ITEMS)
-
+    
     train_neg_adj_list = ut.make_neg_adj_list(train_df, all_items)
     #test_neg_adj_list = ut.make_neg_adj_list(test_df, all_items)
     
@@ -240,7 +272,8 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
       num_items=N_ITEMS,
       model=MODEL,
       is_temp=IS_TEMP,
-      weight_mode = config['weight_mode']
+      weight_mode = config['weight_mode'],
+      base = config['base']
     )
     gcn_model.to(device)
 
@@ -275,15 +308,25 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     all_users = train_df['user_id'].unique()
     all_items = train_df['item_id'].unique()
     
-    print("\nNumber of unique Users & Items: ", N_USERS, N_ITEMS)
+    #print("\nNumber of unique Users & Items: ", N_USERS, N_ITEMS)
     
     # Step 1: Make sure that the user and item pairs in the test set are also in the training set
     
-    test_df = test_df[
-      (test_df['user_id'].isin(all_users)) & \
-      (test_df['item_id'].isin(all_items))
-    ]
+    #test_df = test_df[
+    #  (test_df['user_id'].isin(all_users)) & \
+    #  (test_df['item_id'].isin(all_items))
+    #]
     
+    train_df = filter_by_interactions(train_df, 10)
+    
+    N_USERS = train_df['user_id'].nunique()
+    N_ITEMS = train_df['item_id'].nunique()
+    N_INTERACTIONS = len(train_df)
+    
+    print(f"dataset: {br}{config['dataset']} {rs}| seed: {g_seed} | exp: {exp_n} | users: {N_USERS} | items: {N_ITEMS} | interactions: {N_INTERACTIONS}")
+    
+    get_user_item_stats(train_df, test_df)
+     
     train_adj_list = ut.make_neg_adj_list(train_df, all_items)
     #test_adj_list = ut.make_neg_adj_list(test_df, all_items)
 
@@ -374,3 +417,59 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     #train_and_eval(epochs, model, optimizer, train_df, train_adj_list, test_df, test_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     return losses, metrics
+
+def filter_by_interactions(df_selected, min_interactions):
+    # Filter users with at least a minimum number of interactions
+    user_interaction_counts = df_selected['user_id'].value_counts()
+    filtered_users = user_interaction_counts[user_interaction_counts >= min_interactions].index
+    df_user_filtered = df_selected[df_selected['user_id'].isin(filtered_users)]
+
+    # Filter items with at least a minimum number of interactions
+    item_interaction_counts = df_user_filtered['item_id'].value_counts()
+    filtered_items = item_interaction_counts[item_interaction_counts >= min_interactions].index
+    df_filtered = df_user_filtered[df_user_filtered['item_id'].isin(filtered_items)]
+
+    # Now, ensure users still have enough interactions after filtering items
+    user_interaction_counts_after_item_filter = df_filtered['user_id'].value_counts()
+    filtered_users_after_item_filter = user_interaction_counts_after_item_filter[user_interaction_counts_after_item_filter >= min_interactions].index
+    df_filtered = df_filtered[df_filtered['user_id'].isin(filtered_users_after_item_filter)]
+
+    # Create a copy of the DataFrame to avoid SettingWithCopyWarning
+    return df_filtered.copy()
+    
+
+def get_user_item_stats(train_df, test_df):
+        # Get user interaction statistics
+        train_user_interactions = train_df.groupby('user_id').size()
+        train_min_user_interactions = train_user_interactions.min()
+        train_max_user_interactions = train_user_interactions.max()
+        train_mean_user_interactions = round(train_user_interactions.mean(), 1)
+
+        # Get item interaction statistics
+        train_item_interactions = train_df.groupby('item_id').size()
+        train_min_item_interactions = train_item_interactions.min()
+        train_max_item_interactions = train_item_interactions.max()
+        train_mean_item_interactions = round(train_item_interactions.mean(),1)
+        
+        # Get user interaction statistics
+        test_user_interactions = test_df.groupby('user_id').size()
+        test_min_user_interactions = test_user_interactions.min()
+        test_max_user_interactions = test_user_interactions.max()
+        test_mean_user_interactions = round(test_user_interactions.mean(), 1)
+
+        # Get item interaction statistics
+        test_user_interactions = train_df.groupby('item_id').size()
+        test_min_item_interactions = test_user_interactions.min()
+        test_max_item_interactions = test_user_interactions.max()
+        test_mean_item_interactions = round(test_user_interactions.mean(),1)
+        
+        # update the ids with new encoded values
+        all_users = train_df['user_id'].unique()
+        all_items = train_df['item_id'].unique()
+            
+
+        print(f'trainset | min_user_interactions: {br}{train_min_user_interactions}{rs} | max_user_interactions: {br}{train_max_user_interactions}{rs} | mean_user_interactions: {br}{train_mean_user_interactions}{rs}')
+        print(f'trainset | min_item_interactions: {br}{train_min_item_interactions}{rs} | max_item_interactions: {br}{train_max_item_interactions}{rs} | mean_item_interactions: {br}{train_mean_item_interactions}{rs}')   
+        print(f' testset | min_user_interactions: {br}{test_min_user_interactions}{rs} | max_user_interactions: {br}{test_max_user_interactions}{rs} | mean_user_interactions: {br}{test_mean_user_interactions}{rs}')
+        print(f' testset | min_item_interactions: {br}{test_min_item_interactions}{rs} | max_item_interactions: {br}{test_max_item_interactions}{rs} | mean_item_interactions: {br}{test_mean_item_interactions}{rs}')
+                

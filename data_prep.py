@@ -294,6 +294,17 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
         
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
         ratings_df = df_filtered.copy()
+        
+        # Assuming df_filtered is your filtered DataFrame
+        #user_interaction_counts = ratings_df['user_id'].value_counts()
+        #item_interaction_counts = ratings_df['item_id'].value_counts()
+
+        # Print minimum user and item interactions
+        #min_user_interactions = user_interaction_counts.min()
+        #min_item_interactions = item_interaction_counts.min()
+
+        #print(f"Minimum user interactions after filtering: {min_user_interactions}")
+        #print(f"Minimum item interactions after filtering: {min_item_interactions}")
             
         num_users = len(ratings_df['user_id'].unique())
         num_items = len(ratings_df['item_id'].unique())
@@ -306,12 +317,7 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
         max_min_time_distance = round((max_timestamp - min_timestamp) / 86400, 0)
         
         rating_stat = {'num_users': num_users, 'num_items': num_items, 'mean_rating': mean_rating, 'num_interactions': num_ratings, 'time_distance': max_min_time_distance}
-
-        if verbose > -1:
-            print(f'{br}{dataset}{rs} | {rating_stat}')
-        elif verbose == 1:
-            print(ratings_df.head())
-            
+    
         # Clear memory of large DataFrames that are no longer needed
         del df
         del df_filtered

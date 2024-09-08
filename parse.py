@@ -40,6 +40,7 @@ def parse_args():
     parser.add_argument('--weight_mode', type=str, default='exp')
     parser.add_argument('--shuffle', type=bool, default=False)
     parser.add_argument('--faster', type=bool, default=False)
+    parser.add_argument('--base', type=bool, default=False)
 
     
     return parser.parse_args()

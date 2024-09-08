@@ -399,7 +399,8 @@ class RecSysGNN(nn.Module):
       model, # 'NGCF' or 'LightGCN' or 'LightAttGCN'
       dropout=0.1, # Only used in NGCF
       is_temp=False,
-      weight_mode = None
+      weight_mode = None,
+      base = False
   ):
     super(RecSysGNN, self).__init__()
 
@@ -407,9 +408,12 @@ class RecSysGNN(nn.Module):
     self.model = model
     self.n_users = num_users
     self.n_items = num_items
+    self.base = base
     
     self.embedding = nn.Embedding(num_users + num_items, latent_dim)
     
+    if self.base:
+      self.b_embedding = nn.Embedding(num_users + num_items, latent_dim)
     
     if self.model == 'NGCF':
       self.convs = nn.ModuleList(
@@ -441,6 +445,9 @@ class RecSysGNN(nn.Module):
     else:
       # Authors of LightGCN report higher results with normal initialization
       nn.init.normal_(self.embedding.weight, std=0.1) 
+      
+      if self.base:
+        nn.init.normal_(self.b_embedding.weight, std=0.1)
 
   def forward(self, edge_index, edge_attrs):
     emb0 = self.embedding.weight
@@ -462,14 +469,32 @@ class RecSysGNN(nn.Module):
   def encode_minibatch(self, users, pos_items, neg_items, edge_index, edge_attrs):
     emb0, out = self(edge_index, edge_attrs)
     
-    return (
-        out[users], 
-        out[pos_items], 
-        out[neg_items],
-        emb0[users],
-        emb0[pos_items],
-        emb0[neg_items]
-    )
+    if self.base:
+      u_base = self.b_embedding.weight[users]
+      pos_items_base = self.b_embedding.weight[pos_items]
+      neg_items_base = self.b_embedding.weight[neg_items]
+      
+      return (
+          out[users], 
+          out[pos_items], 
+          out[neg_items],
+          u_base,
+          pos_items_base,
+          neg_items_base,
+          emb0[users],
+          emb0[pos_items],
+          emb0[neg_items]
+      )
+    else:
+      return (
+          out[users], 
+          out[pos_items], 
+          out[neg_items],
+          emb0[users],
+          emb0[pos_items],
+          emb0[neg_items]
+      )
+      
 
   def generate_unique_ids(self, user_ids, item_ids):
     """
@@ -490,3 +515,94 @@ class RecSysGNN(nn.Module):
     
     #unique_ids = pd.Series(user_ids) * self.n_items + pd.Series(item_ids)
     return unique_ids
+  
+class RecSysGNN_2(nn.Module):
+  def __init__(
+      self,
+      latent_dim, 
+      num_layers,
+      num_users,
+      num_items,
+      model, # 'NGCF' or 'LightGCN' or 'LightAttGCN'
+      dropout=0.1, # Only used in NGCF
+      is_temp=False,
+      weight_mode = None
+  ):
+    super(RecSysGNN_2, self).__init__()
+
+    assert (model == 'NGCF' or model == 'LightGCN') or model == 'LightGCNAttn' or model == 'GraphSage' or model == 'GAT', 'Model must be NGCF or LightGCN or LightGCNAttn or GraphSage or GAT'
+    self.model = model
+    self.n_users = num_users
+    self.n_items = num_items
+    
+    self.embedding = nn.Embedding(num_users + num_items, latent_dim)
+    
+    self.b_embedding = nn.Embedding(num_users + num_items, latent_dim)
+    
+    if self.model == 'NGCF':
+      self.convs = nn.ModuleList(
+        NGCFConv(latent_dim, dropout=dropout) for _ in range(num_layers)
+      )
+    elif self.model == 'LightGCN':
+      self.convs = nn.ModuleList(
+        LightGCNConv() for _ in range(num_layers)
+      )
+    elif self.model == 'GraphSage':
+      self.convs = nn.ModuleList(
+        GraphSage(latent_dim, dropout=dropout) for _ in range(num_layers)
+      )
+    elif self.model == 'GAT':
+      self.convs = nn.ModuleList(
+        GAT(latent_dim, dropout=dropout) for _ in range(num_layers)
+      )
+    elif self.model == 'LightGCNAttn':
+      self.convs = nn.ModuleList(LightGCNAttn(weight_mode=weight_mode) for _ in range(num_layers))
+    else:
+      raise ValueError('Model must be NGCF, LightGCN or LightAttGCN')
+
+    self.init_parameters()
+
+
+  def init_parameters(self):
+    if self.model == 'NGCF':
+      nn.init.xavier_uniform_(self.embedding.weight, gain=1)
+    else:
+      # Authors of LightGCN report higher results with normal initialization
+      nn.init.normal_(self.embedding.weight, std=0.1) 
+      nn.init.normal_(self.b_embedding.weight, std=0.1)
+
+  def forward(self, edge_index, edge_attrs):
+    emb0 = self.embedding.weight
+    embs = [emb0]
+
+    emb = emb0
+    for conv in self.convs:
+      emb = conv(x=emb, edge_index=edge_index, edge_attrs=edge_attrs)
+      embs.append(emb)
+      
+    out = (
+      torch.cat(embs, dim=-1) if self.model == 'NGCF' 
+      else torch.mean(torch.stack(embs, dim=0), dim=0)
+    )
+        
+    return emb0, out
+
+
+  def encode_minibatch(self, users, pos_items, neg_items, edge_index, edge_attrs):
+    emb0, out = self(edge_index, edge_attrs)
+    
+    u_base = self.b_embedding[users],
+    pos_items_base = self.b_embedding[pos_items],
+    neg_items_base = self.b_embedding[neg_items],
+        
+    return (
+        out[users], 
+        out[pos_items], 
+        out[neg_items],
+        u_base,
+        pos_items_base,
+        neg_items_base,
+        emb0[users],
+        emb0[pos_items],
+        emb0[neg_items]
+    )

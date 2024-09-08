@@ -38,7 +38,7 @@ def print_metrics(recalls, precs, f1s, ncdg, stats):
     print(f" Dataset: {config['dataset']}, num_users: {stats['num_users']}, num_items: {stats['num_items']}, num_interactions: {stats['num_interactions']}")
     
     if config['edge'] == 'bi':
-        print(f"   MODEL: {br}{config['model']}{rs} | EDGE TYPE: {br}{config['edge']}{rs} | #LAYERS: {br}{config['layers']}{rs} | BATCH_SIZE: {br}{config['batch_size']}{rs} | DECAY: {br}{config['decay']}{rs} | EPOCHS: {br}{config['epochs']}{rs} | Shuffle: {br}{config['shuffle']}{rs} | Test Ratio: {br}{config['test_ratio']}{rs}")
+        print(f"   MODEL: {br}{config['model']}{rs} | EDGE TYPE: {br}{config['edge']}{rs} | #LAYERS: {br}{config['layers']}{rs} | BATCH_SIZE: {br}{config['batch_size']}{rs} | DECAY: {br}{config['decay']}{rs} | EPOCHS: {br}{config['epochs']}{rs} | Shuffle: {br}{config['shuffle']}{rs} | Test Ratio: {br}{config['test_ratio']}{rs} | Base: {br}{config['base']}{rs}")
     else:
         print(f"   MODEL: {br}{config['model']}{rs} | EDGE TYPE: {br}{config['edge']}{rs} | #LAYERS: {br}{config['layers']}{rs} | SIM (mode-{config['weight_mode']}, self-{config['self_sim']}): {br}u-{config['u_sim']}(topK {config['u_sim_top_k']}), i-{config['i_sim']}(topK {config['i_sim_top_k']}){rs} | BATCH_SIZE: {br}{config['batch_size']}{rs} | DECAY: {br}{config['decay']}{rs} | EPOCHS: {br}{config['epochs']}{rs} | Shuffle: {br}{config['shuffle']}{rs} | Test Ratio: {br}{config['test_ratio']}{rs}")
 
@@ -59,7 +59,10 @@ def print_metrics(recalls, precs, f1s, ncdg, stats):
         print(f"{name:>8}: {values_str} | {mean_str}, {std_str}")
 
 
-def get_metrics_new(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=1000):
+def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=5000):
+    
+    _debug = False
+    
     # Ensure embeddings are on the correct device
     user_Embed_wts = user_Embed_wts.to(device)
     item_Embed_wts = item_Embed_wts.to(device)
@@ -81,6 +84,11 @@ def get_metrics_new(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, 
     
     v = torch.ones(len(train_df), dtype=torch.float32).to(device)
     interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items), device=device).to_dense()
+    
+    if _debug:
+        print_tensor = interactions_t
+        print(f"\n interactions_t ({print_tensor.shape})\n: {print_tensor}\n")
+
 
     # Collect results across batches
     all_topk_relevance_indices = []
@@ -104,135 +112,46 @@ def get_metrics_new(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, 
 
     # Combine results
     topk_relevance_indices = torch.cat(all_topk_relevance_indices).cpu().numpy()
+    
+    if _debug:
+        print_tensor = topk_relevance_indices
+        print(f"\n topk_relevance_indices ({print_tensor.shape})\n: {print_tensor}\n")
 
     # Measure overlap between recommended (top-scoring) and held-out user-item interactions
     test_interacted_items = test_df.groupby('user_id')['item_id'].apply(list).reset_index()
+    
+    if _debug:
+        print_tensor = test_interacted_items
+        print(f"\n test_interacted_items ({print_tensor.shape})\n: {print_tensor}\n")
+   
 
     # Merge test interactions with top-K predicted relevance indices
     metrics_df = pd.merge(test_interacted_items, pd.DataFrame({'user_id': all_user_ids, 'top_rlvnt_itm': topk_relevance_indices.tolist()}), how='left', on='user_id')
 
+    if _debug:
+        print_tensor = metrics_df
+        print(f"\n metrics_df ({print_tensor.shape})\n: {print_tensor}\n")
+    
+    
     # Handle missing values and ensure that item_id and top_rlvnt_itm are lists
     metrics_df['item_id'] = metrics_df['item_id'].apply(lambda x: x if isinstance(x, list) else [])
     metrics_df['top_rlvnt_itm'] = metrics_df['top_rlvnt_itm'].apply(lambda x: x if isinstance(x, list) else [])
 
     # Calculate intersection items
     metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
-
-    # Calculate recall and precision
-    recalls = []
-    precisions = []
     
-    for _, row in metrics_df.iterrows():
-        relevant_items = set(row['item_id'])
-        recommended_items = set(row['top_rlvnt_itm'])
-        
-        num_relevant = len(relevant_items)
-        num_recommended = len(recommended_items)
-        num_correct = len(relevant_items.intersection(recommended_items))
-
-        # Recall: Number of correct recommendations / Total number of relevant items
-        recall = num_correct / num_relevant if num_relevant > 0 else 0
-        recalls.append(recall)
-
-        # Precision: Number of correct recommendations / K
-        precision = num_correct / K
-        precisions.append(precision)
-    
-    total_recall = np.mean(recalls)
-    total_precision = np.mean(precisions)
-
-    # nDCG calculation
-    test_matrix = np.zeros((len(metrics_df), K))
-    for i, row in metrics_df.iterrows():
-        relevant_items = set(row['item_id'])
-        predicted_items = row['top_rlvnt_itm']
-        for idx, item in enumerate(predicted_items):
-            if item in relevant_items:
-                test_matrix[i, idx] = 1
-
-    # Compute IDCG (Ideal DCG)
-    idcg = np.sum(test_matrix * 1./np.log2(np.arange(2, K + 2)), axis=1)
-    
-    # Compute DCG based on predicted relevance
-    dcg = np.sum(test_matrix * (1. / np.log2(np.arange(2, K + 2))), axis=1)
-
-    # Handle cases where idcg == 0 to avoid division by zero
-    idcg[idcg == 0.] = 1.
-
-    # Compute nDCG as DCG / IDCG
-    ndcg = dcg / idcg
-
-    # Set NaNs in nDCG to zero
-    ndcg[np.isnan(ndcg)] = 0.
-
-    # Aggregate metrics
-    total_ndcg = np.mean(ndcg)
-    
-    return total_recall, total_precision, total_ndcg
-
-
-def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=1000):
-    # Ensure embeddings are on the correct device
-    user_Embed_wts = user_Embed_wts.to(device)
-    item_Embed_wts = item_Embed_wts.to(device)
-
-    assert n_users == user_Embed_wts.shape[0]
-    assert n_items == item_Embed_wts.shape[0]
-
-    # Initialize metrics
-    total_recall = 0.0
-    total_precision = 0.0
-    total_ndcg = 0.0
-    num_batches = (n_users + batch_size - 1) // batch_size
-
-    # Prepare interaction tensor for the batch
-    i = torch.stack((
-        torch.LongTensor(train_df['user_id'].values),
-        torch.LongTensor(train_df['item_id'].values)
-    )).to(device)
-    
-    v = torch.ones(len(train_df), dtype=torch.float32).to(device)
-    interactions_t = torch.sparse_coo_tensor(i, v, (n_users, n_items), device=device).to_dense()
-
-    # Collect results across batches
-    all_topk_relevance_indices = []
-    all_user_ids = []
-
-    for batch_start in range(0, n_users, batch_size):
-        batch_end = min(batch_start + batch_size, n_users)
-        batch_user_indices = torch.arange(batch_start, batch_end).to(device)
-
-        # Extract embeddings for the current batch
-        user_Embed_wts_batch = user_Embed_wts[batch_user_indices]
-        relevance_score_batch = torch.matmul(user_Embed_wts_batch, item_Embed_wts.t())
-
-        # Mask out training user-item interactions from metric computation
-        relevance_score_batch = relevance_score_batch * (1 - interactions_t[batch_user_indices])
-
-        # Compute top scoring items for each user
-        topk_relevance_indices = torch.topk(relevance_score_batch, K).indices
-        all_topk_relevance_indices.append(topk_relevance_indices)
-        all_user_ids.extend(batch_user_indices.cpu().numpy())
-
-    # Combine results
-    topk_relevance_indices = torch.cat(all_topk_relevance_indices).cpu().numpy()
-
-    # Measure overlap between recommended (top-scoring) and held-out user-item interactions
-    test_interacted_items = test_df.groupby('user_id')['item_id'].apply(list).reset_index()
-
-    # Merge test interactions with top-K predicted relevance indices
-    metrics_df = pd.merge(test_interacted_items, pd.DataFrame({'user_id': all_user_ids, 'top_rlvnt_itm': topk_relevance_indices.tolist()}), how='left', on='user_id')
-
-    # Handle missing values and ensure that item_id and top_rlvnt_itm are lists
-    metrics_df['item_id'] = metrics_df['item_id'].apply(lambda x: x if isinstance(x, list) else [])
-    metrics_df['top_rlvnt_itm'] = metrics_df['top_rlvnt_itm'].apply(lambda x: x if isinstance(x, list) else [])
-
-    # Calculate intersection items
-    metrics_df['intrsctn_itm'] = [list(set(a).intersection(b)) for a, b in zip(metrics_df.item_id, metrics_df.top_rlvnt_itm)]
+    if _debug:
+        print_tensor = metrics_df
+        print(f"\n metrics_df ({print_tensor.shape})\n: {print_tensor}\n")
 
     # Calculate recall, precision, and nDCG
     metrics_df['recall'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / len(x['item_id']) if len(x['item_id']) > 0 else 0, axis=1)
     metrics_df['precision'] = metrics_df.apply(lambda x: len(x['intrsctn_itm']) / K, axis=1)
+    
+    if _debug:
+        print_tensor = metrics_df
+        print(f"\n metrics_df ({print_tensor.shape})\n: {print_tensor}\n")
+
 
     # Generate a binary relevance matrix for test interactions (same as in the first function)
     test_matrix = np.zeros((len(metrics_df), K))
@@ -241,9 +160,19 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
         predicted_items = row['top_rlvnt_itm']
         length = min(K, len(relevant_items))
         test_matrix[i, :length] = 1
+    
+    
+    if _debug:    
+        print_tensor = test_matrix
+        print(f"\n test_matrix ({print_tensor.shape})\n: {print_tensor}\n")
+
 
     # Compute IDCG (Ideal DCG)
     idcg = np.sum(test_matrix * 1./np.log2(np.arange(2, K + 2)), axis=1)
+    
+    if _debug:
+        print_tensor = idcg
+        print(f"\n idcg ({print_tensor.shape})\n: {print_tensor}\n")
     
     # Compute DCG based on predicted relevance
     dcg_matrix = np.zeros((len(metrics_df), K))
@@ -253,12 +182,21 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
         dcg_matrix[i] = [1 if item in relevant_items else 0 for item in predicted_items]
     
     dcg = np.sum(dcg_matrix * (1. / np.log2(np.arange(2, K + 2))), axis=1)
+    
+    if _debug:
+        print_tensor = dcg
+        print(f"\n dcg ({print_tensor.shape})\n: {print_tensor}\n")
 
     # Handle cases where idcg == 0 to avoid division by zero
     idcg[idcg == 0.] = 1.
 
     # Compute nDCG as DCG / IDCG
     ndcg = dcg / idcg
+    
+    if _debug:
+        print_tensor = ndcg
+        print(f"\n ndcg ({print_tensor.shape})\n: {print_tensor}\n")
+        sys.exit()
 
     # Set NaNs in nDCG to zero
     ndcg[np.isnan(ndcg)] = 0.
