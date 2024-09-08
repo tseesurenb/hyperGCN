@@ -302,7 +302,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
 def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
-    
+    # filter users and items with less than 10 interactions
     train_df = filter_by_interactions(train_df, 10)
     
     all_users = train_df['user_id'].unique()
