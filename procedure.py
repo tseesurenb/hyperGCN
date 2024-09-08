@@ -183,7 +183,7 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
     return (losses, metrics)
 
 # Step 2: Encode user and item IDs
-def encode_ids(train_df, test_df):
+def encode_ids_2(train_df, test_df):
     le_user = pp.LabelEncoder()
     le_item = pp.LabelEncoder()
     train_df['user_id'] = le_user.fit_transform(train_df['user_id'].values)
@@ -193,7 +193,21 @@ def encode_ids(train_df, test_df):
     test_df['item_id'] = le_item.transform(test_df['item_id'].values)
     
     return train_df, test_df
-        
+
+def encode_ids(train_df: pd.DataFrame, test_df: pd.DataFrame) -> tuple:
+    le_user = pp.LabelEncoder()
+    le_item = pp.LabelEncoder()
+    
+    # Apply transformations to the training DataFrame
+    train_df.loc[:, 'user_id'] = le_user.fit_transform(train_df['user_id'].values)
+    train_df.loc[:, 'item_id'] = le_item.fit_transform(train_df['item_id'].values)
+    
+    # Apply transformations to the test DataFrame
+    test_df.loc[:, 'user_id'] = le_user.transform(test_df['user_id'].values)
+    test_df.loc[:, 'item_id'] = le_item.transform(test_df['item_id'].values)
+    
+    return train_df, test_df
+       
 def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
     train_test_ratio = config['test_ratio']
