@@ -181,7 +181,19 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
             pbar.refresh()
 
     return (losses, metrics)
+
+# Step 2: Encode user and item IDs
+def encode_ids(train_df, test_df):
+    le_user = pp.LabelEncoder()
+    le_item = pp.LabelEncoder()
+    train_df['user_id'] = le_user.fit_transform(train_df['user_id'].values)
+    train_df['item_id'] = le_item.fit_transform(train_df['item_id'].values)
     
+    test_df['user_id'] = le_user.transform(test_df['user_id'].values)
+    test_df['item_id'] = le_item.transform(test_df['item_id'].values)
+    
+    return train_df, test_df
+        
 def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
     train_test_ratio = config['test_ratio']
@@ -198,14 +210,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
       (test_df['item_id'].isin(all_items))
     ]
     
-    # Step 2: Encode user and item IDs
-    le_user = pp.LabelEncoder()
-    le_item = pp.LabelEncoder()
-    train_df['user_id'] = le_user.fit_transform(train_df['user_id'].values)
-    train_df['item_id'] = le_item.fit_transform(train_df['item_id'].values)
-    
-    test_df['user_id'] = le_user.transform(test_df['user_id'].values)
-    test_df['item_id'] = le_item.transform(test_df['item_id'].values)
+    train_df, test_df = encode_ids(train_df, test_df)
     
     N_USERS = train_df['user_id'].nunique()
     N_ITEMS = train_df['item_id'].nunique()
@@ -303,7 +308,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
     # filter users and items with less than 10 interactions
-    #train_df = filter_by_interactions(train_df, 10)
+    train_df = filter_by_interactions(train_df, 10)
     
     all_users = train_df['user_id'].unique()
     all_items = train_df['item_id'].unique()
@@ -312,8 +317,9 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
       (test_df['user_id'].isin(all_users)) & \
       (test_df['item_id'].isin(all_items))
     ]
-    
-    
+
+    train_df, test_df = encode_ids(train_df, test_df)
+        
     N_USERS = train_df['user_id'].nunique()
     N_ITEMS = train_df['item_id'].nunique()
     TRAIN_N_INTERACTIONS = len(train_df)
