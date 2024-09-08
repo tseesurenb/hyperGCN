@@ -435,6 +435,10 @@ def filter_by_interactions(df_selected, min_interactions):
     df_filtered = df_filtered[df_filtered['user_id'].isin(filtered_users_after_item_filter)]
 
     # Create a copy of the DataFrame to avoid SettingWithCopyWarning
+    
+    del df_selected
+    del df_user_filtered
+    
     return df_filtered.copy()
     
 
