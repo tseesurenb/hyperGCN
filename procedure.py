@@ -316,9 +316,10 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     
     N_USERS = train_df['user_id'].nunique()
     N_ITEMS = train_df['item_id'].nunique()
-    N_INTERACTIONS = len(train_df)
+    TRAIN_N_INTERACTIONS = len(train_df)
+    TEST_N_INTERACTIONS = len(test_df)
     
-    print(f"dataset: {br}{config['dataset']} {rs}| seed: {g_seed} | exp: {exp_n} | users: {N_USERS} | items: {N_ITEMS} | interactions: {N_INTERACTIONS}")
+    print(f"dataset: {br}{config['dataset']} {rs}| seed: {g_seed} | exp: {exp_n} | users: {N_USERS} | items: {N_ITEMS} | train interactions: {TRAIN_N_INTERACTIONS} | test interactions: {TEST_N_INTERACTIONS}")
     
     if verbose >= 1:
         get_user_item_stats(train_df, test_df)
