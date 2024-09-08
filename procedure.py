@@ -322,7 +322,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
     # filter users and items with less than 10 interactions
-    train_df = filter_by_interactions(train_df, 10)
+    #train_df = filter_by_interactions(train_df, 10)
     
     all_users = train_df['user_id'].unique()
     all_items = train_df['item_id'].unique()
@@ -332,7 +332,7 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
       (test_df['item_id'].isin(all_items))
     ]
 
-    train_df, test_df = encode_ids(train_df, test_df)
+    #train_df, test_df = encode_ids(train_df, test_df)
         
     N_USERS = train_df['user_id'].nunique()
     N_ITEMS = train_df['item_id'].nunique()
