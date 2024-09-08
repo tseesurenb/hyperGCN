@@ -303,7 +303,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
     # filter users and items with less than 10 interactions
-    train_df = filter_by_interactions(train_df, 10)
+    #train_df = filter_by_interactions(train_df, 10)
     
     all_users = train_df['user_id'].unique()
     all_items = train_df['item_id'].unique()
@@ -320,7 +320,8 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     
     print(f"dataset: {br}{config['dataset']} {rs}| seed: {g_seed} | exp: {exp_n} | users: {N_USERS} | items: {N_ITEMS} | interactions: {N_INTERACTIONS}")
     
-    get_user_item_stats(train_df, test_df)
+    if verbose >= 1:
+        get_user_item_stats(train_df, test_df)
      
     train_adj_list = ut.make_neg_adj_list(train_df, all_items)
     #test_adj_list = ut.make_neg_adj_list(test_df, all_items)
