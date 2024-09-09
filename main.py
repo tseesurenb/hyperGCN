@@ -8,7 +8,7 @@ import torch
 import torch.backends
 import torch.mps
 import numpy as np
-from utils import plot_results, print_metrics
+from utils import plot_results, print_metrics, set_seed
 from procedure import run_experiment
 import data_prep as dp 
 from world import config
@@ -28,8 +28,8 @@ else:
 df, u_df, i_df, stats = dp.load_data(dataset = config['dataset'], u_min_interaction_threshold = min_interactions, i_min_interaction_threshold = min_interactions, verbose=config['verbose'])
 df = df[df['rating']>=3] # How many ratings are a 3 or above?
         
-#seeds = [7, 12, 89, 91, 41]
-seeds = [7]
+#seeds = [2020, 12, 89, 91, 41]
+seeds = [2020]
 
 old_edge_type = config['edge']
 old_model_type = config['model']
@@ -62,8 +62,7 @@ if os.path.exists(file_path):
 else:
     for seed in seeds:
  
-        np.random.seed(seed)
-        torch.manual_seed(seed)
+        set_seed(seed)
  
         losses, metrics = run_experiment(df = df, g_seed = seed, exp_n = exp_n, device=device, verbose=config['verbose'])
         
@@ -106,8 +105,7 @@ recalls, precs, f1s, ncdg = [], [], [], []
 
 for seed in seeds:
     
-    np.random.seed(seed)
-    torch.manual_seed(seed)
+    set_seed(seed)
     
     losses, metrics = run_experiment(df = df, g_seed = seed, exp_n = exp_n, device=device, verbose=-1)
     

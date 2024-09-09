@@ -438,7 +438,6 @@ class RecSysGNN(nn.Module):
 
     self.init_parameters()
 
-
   def init_parameters(self):
     if self.model == 'NGCF':
       nn.init.xavier_uniform_(self.embedding.weight, gain=1)

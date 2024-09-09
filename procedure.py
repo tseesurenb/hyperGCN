@@ -152,7 +152,7 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
             reg_loss_list.append(reg_loss.item())
             
             # Update the description of the outer progress bar with batch information
-            pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3}')
+            pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3} | Loss {final_loss.item():.4f}')
             
         if epoch % 25 == 0:
             model.eval()
@@ -349,22 +349,23 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     train_adj_list = ut.make_neg_adj_list(train_df, all_items)
     #test_adj_list = ut.make_neg_adj_list(test_df, all_items)
 
-    print("\nDone making adj list")
-    
+  
     u_t = torch.LongTensor(train_df.user_id)
     i_t = torch.LongTensor(train_df.item_id) + N_USERS
 
     if verbose >= 1:
+        print("\nDone making adj list.")
         # Verify the ranges
-        print("max user index: ", u_t.max().item(), "| min user index: ", u_t.min().item())
-        print("max item index: ", i_t.max().item(), "| min item index:", i_t.min().item())
+        print("min user index: ", u_t.min().item(), "| max user index: ", u_t.max().item())
+        print("min item index: ", i_t.min().item(), "| max item index: ", i_t.max().item())
 
     bi_train_edge_index = torch.stack((
       torch.cat([u_t, i_t]),
       torch.cat([i_t, u_t])
     )).to(device)
     
-    print("\nDone creating bi edge index")
+    if verbose >= 1:
+        print("\nDone creating bi edge index.")
          
     #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
     knn_train_adj_df = create_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim'], verbose=verbose) 
@@ -413,9 +414,8 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
 
     optimizer = torch.optim.Adam(lightgcn.parameters(), lr=LR)
     if verbose >=1:
-        print("Size of Learnable Embedding : ", [x.shape for x in list(lightgcn.parameters())])
+        print("Size of learnable embeddings: ", [x.shape for x in list(lightgcn.parameters())])
 
-    #train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_df, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
     losses, metrics = train_and_eval(EPOCHS, 
                                      lightgcn, 
                                      optimizer, 
@@ -432,8 +432,6 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
                                      device, 
                                      exp_n, 
                                      g_seed)
-
-    #train_and_eval(epochs, model, optimizer, train_df, train_adj_list, test_df, test_adj_list, batch_size, n_users, n_items, train_edge_index, train_edge_attrs, decay, topK, device, exp_n, g_seed):
    
     return losses, metrics
 
@@ -489,8 +487,7 @@ def get_user_item_stats(train_df, test_df):
         # update the ids with new encoded values
         all_users = train_df['user_id'].unique()
         all_items = train_df['item_id'].unique()
-            
-
+        
         print(f'trainset | min_user_interactions: {br}{train_min_user_interactions}{rs} | max_user_interactions: {br}{train_max_user_interactions}{rs} | mean_user_interactions: {br}{train_mean_user_interactions}{rs}')
         print(f'trainset | min_item_interactions: {br}{train_min_item_interactions}{rs} | max_item_interactions: {br}{train_max_item_interactions}{rs} | mean_item_interactions: {br}{train_mean_item_interactions}{rs}')   
         print(f' testset | min_user_interactions: {br}{test_min_user_interactions}{rs} | max_user_interactions: {br}{test_max_user_interactions}{rs} | mean_user_interactions: {br}{test_mean_user_interactions}{rs}')
