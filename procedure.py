@@ -154,7 +154,7 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
             # Update the description of the outer progress bar with batch information
             pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3}')
             
-        if epoch % 3 == 0:
+        if epoch % 25 == 0:
             model.eval()
             with torch.no_grad():
                 _, out = model(train_edge_index, train_edge_attrs)
