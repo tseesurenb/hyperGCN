@@ -343,6 +343,8 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     
     if verbose >= 1:
         get_user_item_stats(train_df, test_df)
+        
+    sys.exit()
      
     train_adj_list = ut.make_neg_adj_list(train_df, all_items)
     #test_adj_list = ut.make_neg_adj_list(test_df, all_items)
