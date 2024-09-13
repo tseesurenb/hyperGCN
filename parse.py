@@ -12,7 +12,7 @@ def parse_args():
     parser.add_argument('--seed', type=int, default=42, help='random seed')
     parser.add_argument('--emb_dim', type=int, default=64, help="the embedding size for learning parameters")
     parser.add_argument('--layers', type=int, default=3, help="the layer num of GCN")
-    parser.add_argument('--batch_size', type=int, default= 1024, help="the batch size for bpr loss training procedure")
+    parser.add_argument('--batch_size', type=int, default= 2048, help="the batch size for bpr loss training procedure")
     parser.add_argument('--epochs', type=int,default=51)
     parser.add_argument('--epochs_per_eval', type=int,default=3)
     parser.add_argument('--epochs_per_lr_decay', type=int,default=5)

@@ -59,7 +59,7 @@ def print_metrics(recalls, precs, f1s, ncdg, stats):
         print(f"{name:>8}: {values_str} | {mean_str}, {std_str}")
 
 
-def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=5000):
+def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test_df, K, device, batch_size=100):
     
     _debug = False
     
@@ -100,7 +100,8 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
 
         # Extract embeddings for the current batch
         user_Embed_wts_batch = user_Embed_wts[batch_user_indices]
-        relevance_score_batch = torch.matmul(user_Embed_wts_batch, item_Embed_wts.t())
+        #relevance_score_batch = torch.matmul(user_Embed_wts_batch, item_Embed_wts.t())
+        relevance_score_batch = torch.matmul(user_Embed_wts_batch, torch.transpose(item_Embed_wts,0, 1))
 
         # Mask out training user-item interactions from metric computation
         relevance_score_batch = relevance_score_batch * (1 - interactions_t[batch_user_indices])
@@ -124,14 +125,12 @@ def get_metrics(user_Embed_wts, item_Embed_wts, n_users, n_items, train_df, test
         print_tensor = test_interacted_items
         print(f"\n test_interacted_items ({print_tensor.shape})\n: {print_tensor}\n")
    
-
     # Merge test interactions with top-K predicted relevance indices
     metrics_df = pd.merge(test_interacted_items, pd.DataFrame({'user_id': all_user_ids, 'top_rlvnt_itm': topk_relevance_indices.tolist()}), how='left', on='user_id')
-
+    
     if _debug:
         print_tensor = metrics_df
         print(f"\n metrics_df ({print_tensor.shape})\n: {print_tensor}\n")
-    
     
     # Handle missing values and ensure that item_id and top_rlvnt_itm are lists
     metrics_df['item_id'] = metrics_df['item_id'].apply(lambda x: x if isinstance(x, list) else [])

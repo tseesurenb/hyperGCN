@@ -9,7 +9,7 @@ import torch.backends
 import torch.mps
 import numpy as np
 from procedure import run_experiment_2
-from utils import plot_results, print_metrics
+from utils import plot_results, print_metrics, set_seed
 import data_prep as dp 
 from world import config
 import pickle
@@ -35,8 +35,8 @@ num_interactions = len(train_df)
 
 stats = {'num_users': num_users, 'num_items': num_items,  'num_interactions': num_interactions}
 
-#seeds = [7, 12, 89, 91, 41]
-seeds = [7]
+#seeds = [2020, 12, 89, 91, 41]
+seeds = [2020]
 
 old_edge_type = config['edge']
 old_model_type = config['model']
@@ -75,8 +75,7 @@ else:
     for seed in seeds:
         #print(f'Experiment ({exp_n}) starts with seed:{seed}')
         
-        np.random.seed(seed)
-        torch.manual_seed(seed)
+        set_seed(seed)
         
         #edges = dp.get_edges(df)
 
@@ -126,8 +125,7 @@ ncdg = []
 for seed in seeds:
     #print(f'Experiment ({exp_n}) starts with seed:{seed}')
     
-    np.random.seed(seed)
-    torch.manual_seed(seed)
+    set_seed(seed)
     
     #edges = dp.get_edges(df)
 

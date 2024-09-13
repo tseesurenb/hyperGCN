@@ -329,13 +329,13 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
         
     return ratings_df, user_df, item_df, rating_stat
 
-def load_data_from_adj_list(dataset = "gowalla_2", verbose = 0):
+def load_data_from_adj_list(dataset = "gowalla", verbose = 0):
     
     train_df = None
     test_df = None
     df = None
                       
-    if dataset == 'gowalla_2':
+    if dataset == 'gowalla':
         # Paths for ML-1M data files
         train_path = f'data/gowalla/train_coo.txt'
         test_path = f'data/gowalla/test_coo.txt'
@@ -371,6 +371,21 @@ def load_data_from_adj_list(dataset = "gowalla_2", verbose = 0):
         # Paths for ML-1M data files
         train_path = f'data/amazon-book/train_coo.txt'
         test_path = f'data/amazon-book/test_coo.txt'
+        
+        # Load the entire ratings dataframe into memory
+        df = pd.read_csv(train_path, header=0, sep=' ')
+        # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
+        train_df = df[['user_id', 'item_id', 'rating', 'timestamp']]
+                      
+        # Load the entire ratings dataframe into memory
+        df = pd.read_csv(test_path, header=0, sep=' ')
+        # Select the relevant columns 'asin', 'user_id', 'rating', 'timestamp'
+        test_df = df[['user_id', 'item_id', 'rating', 'timestamp']]
+    
+    elif dataset == 'lastfm':
+        # Paths for ML-1M data files
+        train_path = f'data/lastfm/train_coo.txt'
+        test_path = f'data/lastfm/test_coo.txt'
         
         # Load the entire ratings dataframe into memory
         df = pd.read_csv(train_path, header=0, sep=' ')

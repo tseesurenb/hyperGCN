@@ -154,7 +154,7 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
             # Update the description of the outer progress bar with batch information
             pbar.set_description(f'Exp {exp_n:2} | seed {g_seed:2} | #edges {len(train_edge_index[0]):6} | epoch({epochs}) {epoch} | Batch({n_batch}) {batch_i:3} | Loss {final_loss.item():.4f}')
             
-        if epoch % 25 == 0:
+        if epoch % 10 == 0:
             model.eval()
             with torch.no_grad():
                 _, out = model(train_edge_index, train_edge_attrs)
@@ -332,19 +332,26 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
       (test_df['item_id'].isin(all_items))
     ]
 
-    #train_df, test_df = encode_ids(train_df, test_df)
+    train_df, test_df = encode_ids(train_df, test_df)
         
     N_USERS = train_df['user_id'].nunique()
     N_ITEMS = train_df['item_id'].nunique()
     TRAIN_N_INTERACTIONS = len(train_df)
+    
+    TEST_N_USERS = test_df['user_id'].nunique()
+    TEST_N_ITEMS = test_df['item_id'].nunique()
     TEST_N_INTERACTIONS = len(test_df)
     
-    print(f"dataset: {br}{config['dataset']} {rs}| seed: {g_seed} | exp: {exp_n} | users: {N_USERS} | items: {N_ITEMS} | train interactions: {TRAIN_N_INTERACTIONS} | test interactions: {TEST_N_INTERACTIONS}")
+    print(f"dataset: {br}{config['dataset']} {rs}| seed: {g_seed} | exp: {exp_n} | train users: {N_USERS} | train items: {N_ITEMS} | train interactions: {TRAIN_N_INTERACTIONS}")
+    print(f"dataset: {br}{config['dataset']} {rs}| seed: {g_seed} | exp: {exp_n} |  test users: {TEST_N_USERS} |  test items: {TEST_N_ITEMS} |  test interactions: {TEST_N_INTERACTIONS}")
     
     if verbose >= 1:
         get_user_item_stats(train_df, test_df)
         
     #sys.exit()
+    
+    all_users = train_df['user_id'].unique()
+    all_items = train_df['item_id'].unique()
      
     train_adj_list = ut.make_neg_adj_list(train_df, all_items)
     #test_adj_list = ut.make_neg_adj_list(test_df, all_items)
