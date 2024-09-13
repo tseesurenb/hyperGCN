@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument('--u_sim_thresh', type=float, default=0.2)
     parser.add_argument('--i_sim_thresh', type=float, default=0.15)
     parser.add_argument('--u_sim', type=str, default='cosine')
-    parser.add_argument('--i_sim', type=str, default='jaccard')
+    parser.add_argument('--i_sim', type=str, default='cosine')
     parser.add_argument('--edge', type=str, default='bi')
     parser.add_argument('--u_sim_top_k', type=int, default=20)
     parser.add_argument('--i_sim_top_k', type=int, default=20)
