@@ -23,6 +23,7 @@ class LightGCNAttn(MessagePassing):
         
         self.weight_mode = weight_mode
         self.graph_norms = None
+        self.edge_attr_calc = None
             
     def forward(self, x, edge_index, edge_attrs):
         # Compute normalization
@@ -33,18 +34,20 @@ class LightGCNAttn(MessagePassing):
         #norm = deg_inv_sqrt[from_] * deg_inv_sqrt[to_]
         if self.graph_norms is None:
             self.graph_norms = gcn_norm(edge_index=edge_index, add_self_loops=False)
+            if self.weight_mode == 'exp':
+                self.edge_attr_calc = torch.exp(edge_attrs)
+            elif self.weight_mode == 'raw':
+                self.edge_attr_calc = edge_attrs
+            else:
+                self.edge_attr_calc = None
         
         # Start propagating messages (no update after aggregation)
-        return self.propagate(edge_index, x=x, norm=self.graph_norms[0], attr = edge_attrs)
+        return self.propagate(edge_index, x=x, norm=self.graph_norms[0], attr = self.edge_attr_calc)
 
     def message(self, x_j, norm, attr):
-        if self.weight_mode == 'exp':
-            return norm.view(-1, 1) * (x_j * torch.exp(attr).view(-1, 1))
-        elif self.weight_mode == 'raw':
+        if attr != None:
             return norm.view(-1, 1) * (x_j * attr.view(-1, 1))
-            #k = 3  # You can increase k for a stronger effect
-            #return norm.view(-1, 1) * (x_j * torch.exp(attr).pow(k).view(-1, 1))  
-        elif self.weight_mode == 'none':
+        else:
             return norm.view(-1, 1) * x_j   
         
 
