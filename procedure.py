@@ -348,40 +348,41 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     if verbose >= 1:
         get_user_item_stats(train_df, test_df)
         
-    #sys.exit()
-    
+
     all_users = train_df['user_id'].unique()
     all_items = train_df['item_id'].unique()
      
     train_adj_list = ut.make_neg_adj_list(train_df, all_items)
     #test_adj_list = ut.make_neg_adj_list(test_df, all_items)
 
-  
-    u_t = torch.LongTensor(train_df.user_id)
-    i_t = torch.LongTensor(train_df.item_id) + N_USERS
+    if config['edge'] == 'bi':
+        
+        u_t = torch.LongTensor(train_df.user_id)
+        i_t = torch.LongTensor(train_df.item_id) + N_USERS
 
-    if verbose >= 1:
-        print("\nDone making adj list.")
-        # Verify the ranges
-        print("min user index: ", u_t.min().item(), "| max user index: ", u_t.max().item())
-        print("min item index: ", i_t.min().item(), "| max item index: ", i_t.max().item())
-
-    bi_train_edge_index = torch.stack((
-      torch.cat([u_t, i_t]),
-      torch.cat([i_t, u_t])
-    )).to(device)
+        if verbose >= 1:
+            print("\nDone making adj list.")
+            # Verify the ranges
+            print("min user index: ", u_t.min().item(), "| max user index: ", u_t.max().item())
+            print("min item index: ", i_t.min().item(), "| max item index: ", i_t.max().item())
     
-    if verbose >= 1:
-        print("\nDone creating bi edge index.")
+        bi_train_edge_index = torch.stack((
+        torch.cat([u_t, i_t]),
+        torch.cat([i_t, u_t])
+        )).to(device)
+    
+        if verbose >= 1:
+            print("\nDone creating bi edge index.")
          
     #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
-    knn_train_adj_df = create_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim'], verbose=verbose) 
-    knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
+    if config['edge'] == 'knn':
+        knn_train_adj_df = create_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim'], verbose=verbose) 
+        knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
     
-    # Convert train_edge_index to a torch tensor if it's a numpy array
-    if isinstance(knn_train_edge_index, np.ndarray):
-        knn_train_edge_index = torch.tensor(knn_train_edge_index).to(device)
-        knn_train_edge_index = knn_train_edge_index.long()
+        # Convert train_edge_index to a torch tensor if it's a numpy array
+        if isinstance(knn_train_edge_index, np.ndarray):
+            knn_train_edge_index = torch.tensor(knn_train_edge_index).to(device)
+            knn_train_edge_index = knn_train_edge_index.long()
     
     # Concatenate user-to-user, item-to-item (from train_edge_index) and user-to-item, item-to-user (from train_edge_index2)
     if config['edge'] == 'full':
