@@ -45,3 +45,4 @@ config['weight_mode'] = args.weight_mode
 config['shuffle'] = args.shuffle
 config['faster'] = args.faster
 config['base'] = args.base
+config['refresh'] = args.refresh

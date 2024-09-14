@@ -53,11 +53,11 @@ f1s = []
 ncdg = []
 exp_n = 1
 
-file_name = f"models/{config['model']}_{config['dataset']}_{config['edge']}_{config['layers']}_{config['epochs']}"
+file_name = f"models/{config['model']}_{device}_{config['seed']}_{config['dataset']}_{config['batch_size']}__{config['layers']}_{config['epochs']}_{config['edge']}"
 file_path = file_name + "_experiment_results.pkl"
 
 # Check if the results file exists
-if os.path.exists(file_path):
+if os.path.exists(file_path) and config['refresh'] == False:
     print(f"Loading results from {file_path}...")
     
     # Load the results
@@ -112,7 +112,7 @@ print(f'\n----------------------------------------------------------------------
 config['edge'] = old_edge_type
 config['model'] = old_model_type
 
-file_name = f"models/{config['model']}_{config['dataset']}_{config['edge']}_{config['weight_mode']}_{config['layers']}_{config['epochs']}"
+file_name = f"models/{config['model']}_{device}_{config['seed']}_{config['dataset']}_{config['batch_size']}__{config['layers']}_{config['epochs']}_{config['edge']}_{config['weight_mode']}_{config['u_sim_top_k']}_{config['i_sim_top_k']}"
 
 all_knn_metrics = []
 all_knn_losses = []

@@ -168,16 +168,16 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
             else:
                 f1 = 0.0
                 
-            losses['loss'].append(round(np.mean(final_loss_list),4))
-            losses['bpr_loss'].append(round(np.mean(bpr_loss_list),4))
-            losses['reg_loss'].append(round(np.mean(reg_loss_list),4))
+            losses['loss'].append(round(np.mean(final_loss_list),5))
+            losses['bpr_loss'].append(round(np.mean(bpr_loss_list),5))
+            losses['reg_loss'].append(round(np.mean(reg_loss_list),5))
             
             metrics['recall'].append(round(test_topK_recall,4))
             metrics['precision'].append(round(test_topK_precision,4))
             metrics['f1'].append(round(f1,4))
             metrics['ncdg'].append(round(test_ncdg,4))
             
-            pbar.set_postfix_str(f"prec@20: {br}{test_topK_precision:.4f}{rs} | recall@20: {br}{test_topK_recall:.4f}{rs} | ncdg@20: {br}{test_ncdg:.4f}{rs}")
+            pbar.set_postfix_str(f"prec@20: {br}{test_topK_precision:.5f}{rs} | recall@20: {br}{test_topK_recall:.5f}{rs} | ncdg@20: {br}{test_ncdg:.5f}{rs}")
             pbar.refresh()
 
     return (losses, metrics)
