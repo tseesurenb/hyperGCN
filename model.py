@@ -35,6 +35,8 @@ class LightGCNAttn(MessagePassing):
         if self.graph_norms is None:
             self.graph_norms = gcn_norm(edge_index=edge_index, add_self_loops=False)
 
+            print(f"\n")
+            print(f"len(x): {len(x)}")
             print(f"Edge attrs ({edge_attrs.shape}): {edge_attrs}")
             print(f"Edge index ({edge_index.shape}): {edge_index}")
             
