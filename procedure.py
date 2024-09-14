@@ -394,7 +394,11 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
         print(f"Using bi edges and {len(bi_train_edge_index[0])} edges")
     
     train_edge_index = train_edge_index.clone().detach().to(device)
-    train_edge_attrs = torch.tensor(train_edge_attrs).to(device)
+    
+    if config['edge'] == 'knn':
+        train_edge_attrs = torch.tensor(train_edge_attrs).to(device)
+    else:
+        train_edge_attrs = None
     
     if verbose >= 1:
         print(f"bi edge len: {len(bi_train_edge_index[0])} | knn edge len: {len(knn_train_edge_index[0])} | full edge len: {len(train_edge_index[0])}")

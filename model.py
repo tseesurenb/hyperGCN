@@ -34,6 +34,11 @@ class LightGCNAttn(MessagePassing):
         #norm = deg_inv_sqrt[from_] * deg_inv_sqrt[to_]
         if self.graph_norms is None:
             self.graph_norms = gcn_norm(edge_index=edge_index, add_self_loops=False)
+            
+            print(f"Graph norms ({self.graph_norms.shape}): {self.graph_norms}")
+            print(f"Edge attrs ({edge_attrs.shape}): {edge_attrs}")
+            print(f"Edge index ({edge_index.shape}): {edge_index}")
+            
             if self.weight_mode == 'exp':
                 self.edge_attr_calc = torch.exp(edge_attrs)
             elif self.weight_mode == 'raw':
