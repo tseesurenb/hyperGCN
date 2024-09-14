@@ -26,14 +26,17 @@ class LightGCNAttn(MessagePassing):
         self.edge_attr_calc = None
             
     def forward(self, x, edge_index, edge_attrs):
-        # Compute normalization
-        #from_, to_ = edge_index
-        #deg = degree(to_, x.size(0), dtype=x.dtype)
-        #deg_inv_sqrt = deg.pow(-0.5)
-        #deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-        #norm = deg_inv_sqrt[from_] * deg_inv_sqrt[to_]
+        
         if self.graph_norms is None:
-            self.graph_norms = gcn_norm(edge_index=edge_index, add_self_loops=False)
+
+            # Compute normalization
+            from_, to_ = edge_index
+            deg = degree(to_, x.size(0), dtype=x.dtype)
+            deg_inv_sqrt = deg.pow(-0.5)
+            deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
+            norm = deg_inv_sqrt[from_] * deg_inv_sqrt[to_]
+          
+            self.graph_norms = norm #gcn_norm(edge_index=edge_index, add_self_loops=False)[0]
 
             print(f"\n")
             print(f"len(x): {len(x)}")
@@ -41,14 +44,14 @@ class LightGCNAttn(MessagePassing):
             print(f"Edge index ({edge_index.shape}): {edge_index}")
             
             if self.weight_mode == 'exp':
-                self.edge_attr_calc = torch.exp(edge_attrs)
+                self.edge_attrs = torch.exp(edge_attrs)
             elif self.weight_mode == 'raw':
-                self.edge_attr_calc = edge_attrs
+                self.edge_attrs = edge_attrs
             else:
-                self.edge_attr_calc = None
+                self.edge_attrs = None
         
         # Start propagating messages (no update after aggregation)
-        return self.propagate(edge_index, x=x, norm=self.graph_norms[0], attr = self.edge_attr_calc)
+        return self.propagate(edge_index, x=x, norm=self.graph_norms, attr = self.edge_attrs)
 
     def message(self, x_j, norm, attr):
         if attr != None:
