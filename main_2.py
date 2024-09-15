@@ -79,7 +79,7 @@ else:
         
         #edges = dp.get_edges(df)
 
-        losses, metrics = run_experiment_2(train_df = train_df, test_df=test_df, g_seed = seed, exp_n = exp_n, device=device, verbose=config['verbose'])
+        losses, metrics = run_experiment_2(o_train_df = train_df, o_test_df=test_df, g_seed = seed, exp_n = exp_n, device=device, verbose=config['verbose'])
         
         max_idx = np.argmax(metrics['f1'])
         recalls.append(metrics['recall'][max_idx])
@@ -129,7 +129,7 @@ for seed in seeds:
     
     #edges = dp.get_edges(df)
 
-    losses, metrics = run_experiment_2(train_df = train_df, test_df=test_df, g_seed = seed, exp_n = exp_n, device=device, verbose=config['verbose'])
+    losses, metrics = run_experiment_2(o_train_df = train_df, o_test_df=test_df, g_seed = seed, exp_n = exp_n, device=device, verbose=config['verbose'])
     
     max_idx = np.argmax(metrics['f1'])
     #all_metrics.append(metrics)

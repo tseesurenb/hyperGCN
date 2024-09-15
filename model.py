@@ -38,9 +38,9 @@ class LightGCNAttn(MessagePassing):
           
             self.graph_norms = norm #gcn_norm(edge_index=edge_index, add_self_loops=False)[0]
 
-            if self.weight_mode == 'exp':
+            if self.weight_mode == 'exp' and edge_attrs != None:
                 self.edge_attrs = torch.exp(edge_attrs)
-            elif self.weight_mode == 'raw':
+            elif self.weight_mode == 'raw' and edge_attrs != None:
                 self.edge_attrs = edge_attrs
             else:
                 self.edge_attrs = None

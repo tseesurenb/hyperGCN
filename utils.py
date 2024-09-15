@@ -224,7 +224,7 @@ def minibatch(*tensors, batch_size):
         for i in range(0, len(tensors[0]), batch_size):
             yield tuple(x[i:i + batch_size] for x in tensors)
 
-def make_neg_adj_list_2(data, all_items):
+def make_adj_list2(data, all_items):
     
     all_items = set(all_items)
     
@@ -243,7 +243,7 @@ def make_neg_adj_list_2(data, all_items):
     
     return neg_adj_list_dict
 
-def make_neg_adj_list_new(data, all_items):
+def make_adj_list_new22(data, all_items):
     all_items_set = set(all_items)
 
     # Group by user_id and aggregate item_ids into lists
@@ -259,7 +259,7 @@ def make_neg_adj_list_new(data, all_items):
     
     return neg_adj_list_dict
 
-def make_neg_adj_list(data, all_items):
+def make_adj_list(data, all_items):
     all_items_set = set(all_items)
 
     # Group by user_id and aggregate item_ids into lists (positive items)
@@ -280,7 +280,7 @@ def make_neg_adj_list(data, all_items):
     return neg_pos_adj_list_dict
 
 
-def neg_uniform_sample_new(train_df, neg_adj_list, n_usr):
+def neg_uniform_sample2(train_df, neg_adj_list, n_usr):
     interactions = train_df.to_numpy()
     users = interactions[:, 0].astype(int)
     pos_items = interactions[:, 1].astype(int)
@@ -306,7 +306,31 @@ def neg_uniform_sample_new(train_df, neg_adj_list, n_usr):
     
     return S
 
-def neg_uniform_sample(train_df, neg_adj_list, n_usr):
+def neg_uniform_sample(train_df, full_adj_list, n_usr):
+    interactions = train_df.to_numpy()
+    users = interactions[:, 0].astype(int)
+    pos_items = interactions[:, 1].astype(int)
+    
+    neg_items = []
+
+    for u in users:
+        neg_list = full_adj_list[u]['neg_items']
+        neg_items.append(neg_list[np.random.randint(0, len(neg_list))])
+    
+    #neg_items = np.array([full_adj_list[u]['neg_items'][np.random.randint(0, len(full_adj_list[u]['neg_items']))] for u in users])
+    
+    
+        
+    pos_items = [item + n_usr for item in pos_items]
+    neg_items = [item + n_usr for item in neg_items]
+    
+    S = np.column_stack((users, pos_items, neg_items))
+    
+    del users, pos_items, neg_items
+    
+    return S
+
+def full_uniform_sample(train_df, full_adj_list, n_usr):
      
     users = np.random.randint(0, n_usr, len(train_df))
     
@@ -314,8 +338,8 @@ def neg_uniform_sample(train_df, neg_adj_list, n_usr):
     neg_items = []
     
     for u in users:
-        pos_list = neg_adj_list[u]['pos_items']
-        neg_list = neg_adj_list[u]['neg_items']
+        pos_list = full_adj_list[u]['pos_items']
+        neg_list = full_adj_list[u]['neg_items']
         pos_items.append(pos_list[np.random.randint(0, len(pos_list))] + n_usr)
         neg_items.append(neg_list[np.random.randint(0, len(neg_list))] + n_usr)
     

@@ -46,3 +46,4 @@ config['shuffle'] = args.shuffle
 config['faster'] = args.faster
 config['base'] = args.base
 config['refresh'] = args.refresh
+config['full_sample'] = args.full_sample

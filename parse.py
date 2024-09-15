@@ -42,5 +42,6 @@ def parse_args():
     parser.add_argument('--faster', type=bool, default=False)
     parser.add_argument('--base', type=bool, default=False)
     parser.add_argument('--refresh', type=bool, default=False)
+    parser.add_argument('--full_sample', type=bool, default=False)
     
     return parser.parse_args()

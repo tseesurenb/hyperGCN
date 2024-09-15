@@ -97,12 +97,25 @@ def train_and_eval(epochs, model, optimizer, train_df, train_neg_adj_list, test_
     for epoch in pbar:
     
         final_loss_list, bpr_loss_list, reg_loss_list  = [], [], []
-
-        S = ut.neg_uniform_sample(train_df, train_neg_adj_list, n_users)
+        
+        if config['full_sample'] == True:
+            S = ut.full_uniform_sample(train_df, train_neg_adj_list, n_users)
+        else:
+            S = ut.neg_uniform_sample(train_df, train_neg_adj_list, n_users)
+        
+        #S = ut.full_uniform_sample(train_df, train_neg_adj_list, n_users)
 
         users = torch.Tensor(S[:, 0]).long().to(device)
         pos_items = torch.Tensor(S[:, 1]).long().to(device)
         neg_items = torch.Tensor(S[:, 2]).long().to(device)
+        
+        _debug = False
+        
+        if _debug:
+            print(f"\nusers({len(users)}): {users}")
+            print(f"pos_items({len(pos_items)}): {pos_items}")
+            print(f"neg_items({len(neg_items)}): {neg_items}")  
+            sys.exit()
         
         if config['shuffle']: 
             users, pos_items, neg_items = ut.shuffle(users, pos_items, neg_items)
@@ -237,8 +250,7 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     all_users = train_df['user_id'].unique()
     all_items = train_df['item_id'].unique()
     
-    train_neg_adj_list = ut.make_neg_adj_list(train_df, all_items)
-    #test_neg_adj_list = ut.make_neg_adj_list(test_df, all_items)
+    train_neg_adj_list = ut.make_adj_list(train_df, all_items)
     
     # Step 3: Create edge index for user-to-item and item-to-user interactions
     u_t = torch.LongTensor(train_df.user_id)
@@ -319,46 +331,45 @@ def run_experiment(df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
     return losses, metrics
 
 
-def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
+def run_experiment_2(o_train_df, o_test_df, g_seed=42, exp_n = 1, device='cpu', verbose = -1):
 
     # filter users and items with less than 10 interactions
     #train_df = filter_by_interactions(train_df, 10)
     
-    all_users = train_df['user_id'].unique()
-    all_items = train_df['item_id'].unique()
+    all_users = o_train_df['user_id'].unique()
+    all_items = o_train_df['item_id'].unique()
     
-    test_df = test_df[
-      (test_df['user_id'].isin(all_users)) & \
-      (test_df['item_id'].isin(all_items))
+    _test_df = o_test_df[
+      (o_test_df['user_id'].isin(all_users)) & \
+      (o_test_df['item_id'].isin(all_items))
     ]
 
-    train_df, test_df = encode_ids(train_df, test_df)
+    _train_df, _test_df = encode_ids(o_train_df, _test_df)
         
-    N_USERS = train_df['user_id'].nunique()
-    N_ITEMS = train_df['item_id'].nunique()
-    TRAIN_N_INTERACTIONS = len(train_df)
+    N_USERS = _train_df['user_id'].nunique()
+    N_ITEMS = _train_df['item_id'].nunique()
+    TRAIN_N_INTERACTIONS = len(_train_df)
     
-    TEST_N_USERS = test_df['user_id'].nunique()
-    TEST_N_ITEMS = test_df['item_id'].nunique()
-    TEST_N_INTERACTIONS = len(test_df)
+    TEST_N_USERS = _test_df['user_id'].nunique()
+    TEST_N_ITEMS = _test_df['item_id'].nunique()
+    TEST_N_INTERACTIONS = len(_test_df)
     
     print(f"dataset: {br}{config['dataset']} {rs}| seed: {g_seed} | exp: {exp_n} | train users: {N_USERS} | train items: {N_ITEMS} | train interactions: {TRAIN_N_INTERACTIONS}")
     print(f"dataset: {br}{config['dataset']} {rs}| seed: {g_seed} | exp: {exp_n} |  test users: {TEST_N_USERS} |  test items: {TEST_N_ITEMS} |  test interactions: {TEST_N_INTERACTIONS}")
     
     if verbose >= 1:
-        get_user_item_stats(train_df, test_df)
+        get_user_item_stats(_train_df, _test_df)
         
 
-    all_users = train_df['user_id'].unique()
-    all_items = train_df['item_id'].unique()
+    all_users = _train_df['user_id'].unique()
+    all_items = _train_df['item_id'].unique()
      
-    train_adj_list = ut.make_neg_adj_list(train_df, all_items)
-    #test_adj_list = ut.make_neg_adj_list(test_df, all_items)
+    train_adj_list = ut.make_adj_list(_train_df, all_items)
 
     if config['edge'] == 'bi':
         
-        u_t = torch.LongTensor(train_df.user_id)
-        i_t = torch.LongTensor(train_df.item_id) + N_USERS
+        u_t = torch.LongTensor(_train_df.user_id)
+        i_t = torch.LongTensor(_train_df.item_id) + N_USERS
 
         if verbose >= 1:
             print("\nDone making adj list.")
@@ -376,7 +387,7 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
          
     #knn_train_adj_df = create_uuii_adjmat_by_threshold(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_thresh=config['u_sim_thresh'], i_sim_thresh=config['i_sim_thresh'], self_sim=config['self_sim'])
     if config['edge'] == 'knn':
-        knn_train_adj_df = create_uuii_adjmat(train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim'], verbose=verbose) 
+        knn_train_adj_df = create_uuii_adjmat(_train_df, u_sim=config['u_sim'], i_sim=config['i_sim'], u_sim_top_k=config['u_sim_top_k'], i_sim_top_k=config['i_sim_top_k'], self_sim=config['self_sim'], verbose=verbose) 
         knn_train_edge_index, train_edge_attrs = get_edge_index(knn_train_adj_df)
     
         # Convert train_edge_index to a torch tensor if it's a numpy array
@@ -431,9 +442,9 @@ def run_experiment_2(train_df, test_df, g_seed=42, exp_n = 1, device='cpu', verb
     losses, metrics = train_and_eval(EPOCHS, 
                                      lightgcn, 
                                      optimizer, 
-                                     train_df,
+                                     _train_df,
                                      train_adj_list,
-                                     test_df,
+                                     _test_df,
                                      BATCH_SIZE, 
                                      N_USERS, 
                                      N_ITEMS, 
