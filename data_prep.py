@@ -275,13 +275,7 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
         print(f'{br}No data is loaded for dataset: {dataset} !!!{rs}')
 
     if df_selected is not None:
-    
-        #_lbl_user = preprocessing.LabelEncoder()
-        #_lbl_movie = preprocessing.LabelEncoder()
-        
-        #ratings_df.userId = _lbl_user.fit_transform(ratings_df.userId.values)
-        #ratings_df.itemId = _lbl_movie.fit_transform(ratings_df.itemId.values)
-        
+            
         # Filter users with at least a minimum number of interactions
         user_interaction_counts = df_selected['user_id'].value_counts()
         filtered_users = user_interaction_counts[user_interaction_counts >= u_min_interaction_threshold].index
@@ -294,17 +288,6 @@ def load_data(dataset = "ml-100k", u_min_interaction_threshold = 20, i_min_inter
         
         # Create a copy of the DataFrame to avoid SettingWithCopyWarning
         ratings_df = df_filtered.copy()
-        
-        # Assuming df_filtered is your filtered DataFrame
-        #user_interaction_counts = ratings_df['user_id'].value_counts()
-        #item_interaction_counts = ratings_df['item_id'].value_counts()
-
-        # Print minimum user and item interactions
-        #min_user_interactions = user_interaction_counts.min()
-        #min_item_interactions = item_interaction_counts.min()
-
-        #print(f"Minimum user interactions after filtering: {min_user_interactions}")
-        #print(f"Minimum item interactions after filtering: {min_item_interactions}")
             
         num_users = len(ratings_df['user_id'].unique())
         num_items = len(ratings_df['item_id'].unique())

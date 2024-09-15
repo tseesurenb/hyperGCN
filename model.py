@@ -23,7 +23,7 @@ class LightGCNAttn(MessagePassing):
         
         self.weight_mode = weight_mode
         self.graph_norms = None
-        self.edge_attr_calc = None
+        self.edge_attrs = None
             
     def forward(self, x, edge_index, edge_attrs):
         
@@ -38,11 +38,6 @@ class LightGCNAttn(MessagePassing):
           
             self.graph_norms = norm #gcn_norm(edge_index=edge_index, add_self_loops=False)[0]
 
-            print(f"\n")
-            print(f"len(x): {len(x)}")
-            print(f"Edge attrs ({edge_attrs.shape}): {edge_attrs}")
-            print(f"Edge index ({edge_index.shape}): {edge_index}")
-            
             if self.weight_mode == 'exp':
                 self.edge_attrs = torch.exp(edge_attrs)
             elif self.weight_mode == 'raw':
